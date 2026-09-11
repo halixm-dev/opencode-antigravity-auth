@@ -1,5 +1,8 @@
 # Antigravity + Gemini CLI OAuth Plugin for Opencode
 
+> **Fork:** [`halixm-dev/opencode-antigravity-auth`](https://github.com/halixm-dev/opencode-antigravity-auth)  
+> Adds **Gemini 3.6 / 3.7 / 3.8 Flash** (`gemini-3.X-flash-tiered` + `thinkingLevel`) on top of [NoeFabris/opencode-antigravity-auth](https://github.com/NoeFabris/opencode-antigravity-auth). Install with `"plugin": ["github:halixm-dev/opencode-antigravity-auth"]`.
+
 [![npm version](https://img.shields.io/npm/v/opencode-antigravity-auth.svg)](https://www.npmjs.com/package/opencode-antigravity-auth)
 [![npm beta](https://img.shields.io/npm/v/opencode-antigravity-auth/beta.svg?label=beta)](https://www.npmjs.com/package/opencode-antigravity-auth)
 [![npm downloads](https://img.shields.io/npm/dw/opencode-antigravity-auth.svg)](https://www.npmjs.com/package/opencode-antigravity-auth)
