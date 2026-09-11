@@ -54,7 +54,7 @@ Install the forked opencode-antigravity-auth plugin (halixm-dev fork — include
 
 **Option B: Manual setup**
 
-1. **Add the plugin** to `~/.config/opencode/opencode.json` (this fork):
+1. **Add the plugin** to `~/.config/opencode/opencode.json` (this fork ships a prebuilt `dist/`):
 
    ```json
    {
@@ -62,7 +62,8 @@ Install the forked opencode-antigravity-auth plugin (halixm-dev fork — include
    }
    ```
 
-   > Upstream npm package (no 3.6/3.7/3.8 Flash): `opencode-antigravity-auth@latest`.
+   > Upstream npm package (no 3.6/3.7/3.8 Flash): `opencode-antigravity-auth@latest`.  
+   > Local checkout: `"plugin": ["file:/path/to/opencode-antigravity-auth"]` after `npm run build`.
 
 2. **Login** with your Google account:
 
