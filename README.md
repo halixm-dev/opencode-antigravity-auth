@@ -46,20 +46,20 @@ Enable Opencode to authenticate against **Antigravity** (Google's IDE) via OAuth
 Paste this into any LLM agent (Claude Code, OpenCode, Cursor, etc.):
 
 ```
-Install the opencode-antigravity-auth plugin and add the Antigravity model definitions to ~/.config/opencode/opencode.json by following: https://raw.githubusercontent.com/NoeFabris/opencode-antigravity-auth/dev/README.md
+Install the forked opencode-antigravity-auth plugin (halixm-dev fork — includes Gemini 3.6/3.7/3.8 Flash) and add the Antigravity model definitions to ~/.config/opencode/opencode.json by following: https://raw.githubusercontent.com/halixm-dev/opencode-antigravity-auth/main/README.md
 ```
 
 **Option B: Manual setup**
 
-1. **Add the plugin** to `~/.config/opencode/opencode.json`:
+1. **Add the plugin** to `~/.config/opencode/opencode.json` (this fork):
 
    ```json
    {
-     "plugin": ["opencode-antigravity-auth@latest"]
+     "plugin": ["github:halixm-dev/opencode-antigravity-auth"]
    }
    ```
 
-   > Want bleeding-edge features? Use `opencode-antigravity-auth@beta` instead.
+   > Upstream npm package (no 3.6/3.7/3.8 Flash): `opencode-antigravity-auth@latest`.
 
 2. **Login** with your Google account:
 
@@ -74,7 +74,7 @@ Install the opencode-antigravity-auth plugin and add the Antigravity model defin
 4. **Use it:**
 
    ```bash
-   opencode run "Hello" --model=google/antigravity-claude-opus-4-6-thinking --variant=max
+   opencode run "Hello" --model=google/antigravity-gemini-3.8-flash --variant=high
    ```
 
 </details>
@@ -154,7 +154,7 @@ Add this to your `~/.config/opencode/opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-antigravity-auth@latest"],
+  "plugin": ["github:halixm-dev/opencode-antigravity-auth"],
   "provider": {
     "google": {
       "models": {
