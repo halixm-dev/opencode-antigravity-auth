@@ -118,6 +118,41 @@ describe("resolveModelWithTier", () => {
     });
   });
 
+  describe("Tiered flash models (3.6/3.7/3.8) — 9router 86694ed", () => {
+    it("antigravity-gemini-3.8-flash defaults to -tiered + medium", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.8-flash");
+      expect(result.actualModel).toBe("gemini-3.8-flash-tiered");
+      expect(result.thinkingLevel).toBe("medium");
+      expect(result.isThinkingModel).toBe(true);
+      expect(result.quotaPreference).toBe("antigravity");
+    });
+
+    it("antigravity-gemini-3.7-flash-high maps to -tiered + high", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.7-flash-high");
+      expect(result.actualModel).toBe("gemini-3.7-flash-tiered");
+      expect(result.thinkingLevel).toBe("high");
+    });
+
+    it("antigravity-gemini-3.6-flash-low maps to -tiered + low", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.6-flash-low");
+      expect(result.actualModel).toBe("gemini-3.6-flash-tiered");
+      expect(result.thinkingLevel).toBe("low");
+    });
+
+    it("gemini-3.7-flash (no prefix) still uses -tiered on antigravity quota", () => {
+      const result = resolveModelWithTier("gemini-3.7-flash");
+      expect(result.actualModel).toBe("gemini-3.7-flash-tiered");
+      expect(result.thinkingLevel).toBe("medium");
+      expect(result.quotaPreference).toBe("antigravity");
+    });
+
+    it("does not treat gemini-3-flash as tiered flash", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3-flash");
+      expect(result.actualModel).toBe("gemini-3-flash");
+      expect(result.actualModel).not.toContain("tiered");
+    });
+  });
+
   describe("Claude thinking models default budget", () => {
     it("antigravity-claude-opus-4-6-thinking gets default max budget (32768)", () => {
       const result = resolveModelWithTier("antigravity-claude-opus-4-6-thinking");

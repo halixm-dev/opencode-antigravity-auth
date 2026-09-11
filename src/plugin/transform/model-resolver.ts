@@ -63,6 +63,18 @@ const TIER_REGEX = /-(minimal|low|medium|high)$/;
 const QUOTA_PREFIX_REGEX = /^antigravity-/i;
 const GEMINI_3_PRO_REGEX = /^gemini-3(?:\.\d+)?-pro/i;
 const GEMINI_3_FLASH_REGEX = /^gemini-3(?:\.\d+)?-flash/i;
+/**
+ * Gemini 3.6/3.7/3.8 Flash on Antigravity: the gateway accepts only the
+ * `-tiered` catalog name plus generationConfig.thinkingConfig.thinkingLevel.
+ * Sending `gemini-3.7-flash-medium` returns 404. See 9router commit 86694ed.
+ */
+const TIERED_FLASH_REGEX = /^gemini-3\.(6|7|8)-flash(-tiered)?$/i;
+
+export function isTieredFlashModel(model: string): boolean {
+  return TIERED_FLASH_REGEX.test(model);
+}
+
+const TIERED_FLASH_DEFAULT_LEVEL = "medium";
 
 // ANTIGRAVITY_ONLY_MODELS removed - all models now default to antigravity
 
@@ -175,6 +187,24 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
 
   const isGemini3 = modelWithoutQuota.toLowerCase().startsWith("gemini-3");
   const skipAlias = isAntigravity && isGemini3;
+
+  // 3.6/3.7/3.8 Flash: always resolve to -tiered + thinkingLevel.
+  // Do this before skipAlias so antigravity-gemini-3.7-flash-medium works too.
+  if (isTieredFlashModel(baseName) && quotaPreference === "antigravity" && !isImageModel) {
+    const flashBase = baseName.replace(/-tiered$/i, "");
+    const level =
+      tier === "low" || tier === "medium" || tier === "high"
+        ? tier
+        : TIERED_FLASH_DEFAULT_LEVEL;
+    return {
+      actualModel: `${flashBase}-tiered`,
+      thinkingLevel: level,
+      tier: level,
+      isThinkingModel: true,
+      quotaPreference,
+      explicitQuota,
+    };
+  }
 
   // For Antigravity Gemini 3 Pro models without explicit tier, append default tier
   // Antigravity API: gemini-3-pro requires tier suffix (gemini-3-pro-low/high)

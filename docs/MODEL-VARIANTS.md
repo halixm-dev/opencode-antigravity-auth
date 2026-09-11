@@ -58,6 +58,7 @@ Gemini 3 models use string-based thinking levels. Available levels differ by mod
 | `high` | ✅ | ✅ | Maximum thinking (default) |
 
 > **Note:** The API rejects invalid levels (e.g., `"minimal"` on Pro). Configure variants accordingly.
+> **Gemini 3.6 / 3.7 / 3.8 Flash** support `low` / `medium` / `high` only (no `minimal`). Default when no variant is selected is `medium`.
 
 ### Gemini 3 Pro Example
 
@@ -91,6 +92,51 @@ Gemini 3 models use string-based thinking levels. Available levels differ by mod
     }
   }
 }
+```
+
+### Gemini 3.6 / 3.7 / 3.8 Flash Example
+
+These newer Flash models are supported the same way (`low` / `medium` / `high`).
+The plugin resolves them to Antigravity’s `gemini-3.X-flash-tiered` catalog id and
+passes the tier as `thinkingLevel` (bare `-medium` / `-high` ids return 404).
+
+```json
+{
+  "antigravity-gemini-3.8-flash": {
+    "name": "Gemini 3.8 Flash (Antigravity)",
+    "limit": { "context": 1048576, "output": 65536 },
+    "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
+    "variants": {
+      "low": { "thinkingLevel": "low" },
+      "medium": { "thinkingLevel": "medium" },
+      "high": { "thinkingLevel": "high" }
+    }
+  },
+  "antigravity-gemini-3.7-flash": {
+    "name": "Gemini 3.7 Flash (Antigravity)",
+    "limit": { "context": 1048576, "output": 65536 },
+    "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
+    "variants": {
+      "low": { "thinkingLevel": "low" },
+      "medium": { "thinkingLevel": "medium" },
+      "high": { "thinkingLevel": "high" }
+    }
+  },
+  "antigravity-gemini-3.6-flash": {
+    "name": "Gemini 3.6 Flash (Antigravity)",
+    "limit": { "context": 1048576, "output": 65536 },
+    "modalities": { "input": ["text", "image", "pdf"], "output": ["text"] },
+    "variants": {
+      "low": { "thinkingLevel": "low" },
+      "medium": { "thinkingLevel": "medium" },
+      "high": { "thinkingLevel": "high" }
+    }
+  }
+}
+```
+
+```bash
+opencode run "Hello" --model=google/antigravity-gemini-3.8-flash --variant=high
 ```
 
 ---
