@@ -68,10 +68,15 @@ const GEMINI_3_FLASH_REGEX = /^gemini-3(?:\.\d+)?-flash/i;
  * `-tiered` catalog name plus generationConfig.thinkingConfig.thinkingLevel.
  * Sending `gemini-3.7-flash-medium` returns 404. See 9router commit 86694ed.
  */
-const TIERED_FLASH_REGEX = /^gemini-3\.(6|7|8)-flash(-tiered)?$/i;
+const TIERED_FLASH_REGEX = /^gemini-3\.(6|7)-flash(-tiered)?$/i;
+const GEMINI_3_8_FLASH_REGEX = /^gemini-3\.8-flash$/i;
 
 export function isTieredFlashModel(model: string): boolean {
   return TIERED_FLASH_REGEX.test(model);
+}
+
+export function isGemini3_8FlashModel(model: string): boolean {
+  return GEMINI_3_8_FLASH_REGEX.test(model.replace(/^antigravity-/i, "").replace(/-(low|medium|high)$/i, ""));
 }
 
 const TIERED_FLASH_DEFAULT_LEVEL = "medium";
@@ -188,7 +193,7 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
   const isGemini3 = modelWithoutQuota.toLowerCase().startsWith("gemini-3");
   const skipAlias = isAntigravity && isGemini3;
 
-  // 3.6/3.7/3.8 Flash: always resolve to -tiered + thinkingLevel.
+  // 3.6/3.7 Flash: resolve to -tiered + thinkingLevel (Antigravity gateway).
   // Do this before skipAlias so antigravity-gemini-3.7-flash-medium works too.
   if (isTieredFlashModel(baseName) && quotaPreference === "antigravity" && !isImageModel) {
     const flashBase = baseName.replace(/-tiered$/i, "");
@@ -198,6 +203,23 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
         : TIERED_FLASH_DEFAULT_LEVEL;
     return {
       actualModel: `${flashBase}-tiered`,
+      thinkingLevel: level,
+      tier: level,
+      isThinkingModel: true,
+      quotaPreference,
+      explicitQuota,
+    };
+  }
+
+  // Gemini 3.8 Flash: Antigravity uses level-suffixed model ids (no -tiered).
+  // Per 9router: gemini-3.8-flash-high/medium/low are distinct upstream models.
+  if (GEMINI_3_8_FLASH_REGEX.test(baseName) && quotaPreference === "antigravity" && !isImageModel) {
+    const level =
+      tier === "low" || tier === "medium" || tier === "high"
+        ? tier
+        : TIERED_FLASH_DEFAULT_LEVEL;
+    return {
+      actualModel: `gemini-3.8-flash-${level}`,
       thinkingLevel: level,
       tier: level,
       isThinkingModel: true,
@@ -421,6 +443,11 @@ export function resolveModelWithVariant(
     let actualModel = base.actualModel;
     if (isAntigravityGemini3Pro) {
       const baseModel = base.actualModel.replace(/-(low|medium|high)$/, "");
+      actualModel = `${baseModel}-${level}`;
+    }
+    // Gemini 3.8 Flash: keep level suffix in model name in sync with variant
+    if (/^gemini-3\.8-flash-/i.test(actualModel)) {
+      const baseModel = actualModel.replace(/-(low|medium|high)$/, "");
       actualModel = `${baseModel}-${level}`;
     }
 

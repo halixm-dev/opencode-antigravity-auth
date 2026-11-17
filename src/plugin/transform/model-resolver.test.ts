@@ -119,12 +119,24 @@ describe("resolveModelWithTier", () => {
   });
 
   describe("Tiered flash models (3.6/3.7/3.8) — 9router 86694ed", () => {
-    it("antigravity-gemini-3.8-flash defaults to -tiered + medium", () => {
+    it("antigravity-gemini-3.8-flash defaults to level suffix + medium", () => {
       const result = resolveModelWithTier("antigravity-gemini-3.8-flash");
-      expect(result.actualModel).toBe("gemini-3.8-flash-tiered");
+      expect(result.actualModel).toBe("gemini-3.8-flash-medium");
       expect(result.thinkingLevel).toBe("medium");
       expect(result.isThinkingModel).toBe(true);
       expect(result.quotaPreference).toBe("antigravity");
+    });
+
+    it("antigravity-gemini-3.8-flash-high maps to level suffix + high", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.8-flash-high");
+      expect(result.actualModel).toBe("gemini-3.8-flash-high");
+      expect(result.thinkingLevel).toBe("high");
+    });
+
+    it("antigravity-gemini-3.8-flash-low maps to level suffix + low", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.8-flash-low");
+      expect(result.actualModel).toBe("gemini-3.8-flash-low");
+      expect(result.thinkingLevel).toBe("low");
     });
 
     it("antigravity-gemini-3.7-flash-high maps to -tiered + high", () => {
@@ -149,6 +161,11 @@ describe("resolveModelWithTier", () => {
     it("does not treat gemini-3-flash as tiered flash", () => {
       const result = resolveModelWithTier("antigravity-gemini-3-flash");
       expect(result.actualModel).toBe("gemini-3-flash");
+      expect(result.actualModel).not.toContain("tiered");
+    });
+
+    it("does not treat gemini-3.8-flash as tiered flash", () => {
+      const result = resolveModelWithTier("antigravity-gemini-3.8-flash");
       expect(result.actualModel).not.toContain("tiered");
     });
   });

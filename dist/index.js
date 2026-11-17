@@ -5685,7 +5685,8 @@ var TIER_REGEX = /-(minimal|low|medium|high)$/;
 var QUOTA_PREFIX_REGEX = /^antigravity-/i;
 var GEMINI_3_PRO_REGEX = /^gemini-3(?:\.\d+)?-pro/i;
 var GEMINI_3_FLASH_REGEX = /^gemini-3(?:\.\d+)?-flash/i;
-var TIERED_FLASH_REGEX = /^gemini-3\.(6|7|8)-flash(-tiered)?$/i;
+var TIERED_FLASH_REGEX = /^gemini-3\.(6|7)-flash(-tiered)?$/i;
+var GEMINI_3_8_FLASH_REGEX = /^gemini-3\.8-flash$/i;
 function isTieredFlashModel(model) {
   return TIERED_FLASH_REGEX.test(model);
 }
@@ -5741,6 +5742,17 @@ function resolveModelWithTier(requestedModel, options = {}) {
     const level = tier === "low" || tier === "medium" || tier === "high" ? tier : TIERED_FLASH_DEFAULT_LEVEL;
     return {
       actualModel: `${flashBase}-tiered`,
+      thinkingLevel: level,
+      tier: level,
+      isThinkingModel: true,
+      quotaPreference,
+      explicitQuota
+    };
+  }
+  if (GEMINI_3_8_FLASH_REGEX.test(baseName) && quotaPreference === "antigravity" && !isImageModel) {
+    const level = tier === "low" || tier === "medium" || tier === "high" ? tier : TIERED_FLASH_DEFAULT_LEVEL;
+    return {
+      actualModel: `gemini-3.8-flash-${level}`,
       thinkingLevel: level,
       tier: level,
       isThinkingModel: true,
@@ -6852,7 +6864,8 @@ function generateSyntheticProjectId() {
 }
 var STREAM_ACTION = "streamGenerateContent";
 function isGenerativeLanguageRequest(input2) {
-  return typeof input2 === "string" && input2.includes("generativelanguage.googleapis.com");
+  const url = typeof input2 === "string" ? input2 : input2?.url;
+  return typeof url === "string" && url.includes("generativelanguage.googleapis.com");
 }
 function prepareAntigravityRequest(input2, init, accessToken, projectId, endpointOverride, headerStyle = "antigravity", forceThinkingRecovery = false, options) {
   const baseInit = { ...init };

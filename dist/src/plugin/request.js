@@ -540,7 +540,8 @@ const STREAM_ACTION = "streamGenerateContent";
  * Detects requests headed to the Google Generative Language API so we can intercept them.
  */
 export function isGenerativeLanguageRequest(input) {
-    return typeof input === "string" && input.includes("generativelanguage.googleapis.com");
+    const url = typeof input === "string" ? input : input?.url;
+    return typeof url === "string" && url.includes("generativelanguage.googleapis.com");
 }
 export function prepareAntigravityRequest(input, init, accessToken, projectId, endpointOverride, headerStyle = "antigravity", forceThinkingRecovery = false, options) {
     const baseInit = { ...init };

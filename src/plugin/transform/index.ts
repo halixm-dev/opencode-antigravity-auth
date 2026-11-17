@@ -24,6 +24,7 @@ export {
   resolveModelForHeaderStyle,
   getModelFamily,
   isTieredFlashModel,
+  isGemini3_8FlashModel,
   MODEL_ALIASES,
   THINKING_TIER_BUDGETS,
   GEMINI_3_THINKING_LEVELS,

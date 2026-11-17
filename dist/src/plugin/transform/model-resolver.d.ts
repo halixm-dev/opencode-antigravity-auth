@@ -50,6 +50,7 @@ export declare const GEMINI_3_THINKING_LEVELS: readonly ["minimal", "low", "medi
  */
 export declare const MODEL_ALIASES: Record<string, string>;
 export declare function isTieredFlashModel(model: string): boolean;
+export declare function isGemini3_8FlashModel(model: string): boolean;
 /**
  * Resolves a model name with optional tier suffix and quota prefix to its actual API model name
  * and corresponding thinking configuration.
