@@ -1,7 +1,20 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIG } from "./schema";
+import { DEFAULT_CONFIG, DEFAULT_SHIELD_CONFIG, ShieldConfigSchema } from "./schema";
+
+describe("session title config", () => {
+  it("uses model-generated titles by default", () => {
+    expect(DEFAULT_CONFIG.shield.mock_local_titles).toBe(false);
+    expect(DEFAULT_SHIELD_CONFIG.mock_local_titles).toBe(false);
+    expect(ShieldConfigSchema.parse({}).mock_local_titles).toBe(false);
+    expect(DEFAULT_CONFIG.shield.enabled).toBe(true);
+  });
+
+  it("allows opting into local title mocking", () => {
+    expect(ShieldConfigSchema.parse({ mock_local_titles: true }).mock_local_titles).toBe(true);
+  });
+});
 
 describe("cli_first config", () => {
   it("includes cli_first default in DEFAULT_CONFIG", () => {

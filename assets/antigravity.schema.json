@@ -343,7 +343,7 @@
         "normalize_reasoning_effort": true,
         "reasoning_effort_source": "any",
         "reasoning_effort_target": "remove",
-        "mock_local_titles": true,
+        "mock_local_titles": false,
         "custom_replacements": []
       },
       "type": "object",
@@ -385,7 +385,7 @@
           "description": "Replacement for reasoning effort values, or 'remove' to drop the field."
         },
         "mock_local_titles": {
-          "default": true,
+          "default": false,
           "type": "boolean",
           "description": "Answer OpenCode session-title requests locally instead of spending quota."
         },

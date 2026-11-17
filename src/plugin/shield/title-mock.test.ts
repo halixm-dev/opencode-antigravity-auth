@@ -42,6 +42,13 @@ describe("deriveTitle", () => {
     expect(deriveTitle("")).toBe("New Chat");
     expect(deriveTitle("```\ncode only\n```")).toBe("New Chat");
   });
+
+  it("skips 'Here is the first message of the conversation:' boilerplate", () => {
+    const title = deriveTitle(
+      "Here is the first message of the conversation:\n\nFix the login bug",
+    );
+    expect(title).toBe("Fix the login bug");
+  });
 });
 
 describe("detectTitleRequest", () => {
@@ -147,6 +154,21 @@ describe("buildTitleResponse", () => {
 });
 
 describe("maybeBuildTitleResponse", () => {
+  it.each([
+    "<message>\nFix the login bug\n</message>",
+    "<message>Fix the login bug</message>",
+    '<message role="user">\nFix the login bug\n</message>',
+  ])("uses message content rather than its wrapper: %s", async (message) => {
+    const response = maybeBuildTitleResponse(JSON.stringify(nativeTitleRequest(
+      `Here is the first message of the conversation:\n\n${message}`,
+    )));
+    expect(response).not.toBeNull();
+    const body = await response!.json() as {
+      candidates: Array<{ content: { parts: Array<{ text: string }> } }>;
+    };
+    expect(body.candidates[0]?.content.parts[0]?.text).toBe("Fix the login bug");
+  });
+
   it("returns a response for a detected title request", () => {
     const response = maybeBuildTitleResponse(JSON.stringify(nativeTitleRequest("Add dark mode")));
     expect(response).not.toBeNull();

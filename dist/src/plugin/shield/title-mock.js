@@ -14,6 +14,8 @@ const TITLE_SYSTEM_PATTERNS = [
     /You will receive the first message of a conversation/i,
     /You name chat sessions\./i,
     /Generate a (?:short |concise )?title for (?:this|the) (?:conversation|chat|session)/i,
+    /Here is the (?:first message of the conversation|original request and recent messages|conversation|chat history|user's request)/i,
+    /^here\s+is\s+(?:the\s+)?(?:first\s+message|conversation|chat|original\s+request|recent\s+messages|history)/i,
 ];
 const TITLE_FALLBACK_PATTERN = /(?:session|chat|conversation)\s*title|generate\s+(?:a\s+)?(?:short\s+)?title|title\s+for\s+this|create\s+(?:a\s+)?(?:3-5\s+word\s+)?title|reply\s+with\s+a\s+title/i;
 const MAX_TITLE_LENGTH = 48;
@@ -120,12 +122,19 @@ export function deriveTitle(source) {
     if (typeof source !== "string") {
         return "New Chat";
     }
-    const withoutCode = source.replace(/```[\s\S]*?```/g, " ");
+    // OpenCode wraps the conversation text in <message> tags in title prompts.
+    // Remove only that transport wrapper, preserving markup in the user's text.
+    const withoutCode = source
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/<\/?message(?:\s+[^<>]*)?>/gi, "");
     const lines = withoutCode
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
     for (const rawLine of lines) {
+        if (TITLE_SYSTEM_PATTERNS.some((pattern) => pattern.test(rawLine))) {
+            continue;
+        }
         let line = rawLine
             .replace(/^(?:user|assistant|human|system|###\s*\w+)\s*[:>]\s*/i, "")
             .replace(/^#+\s*/, "")

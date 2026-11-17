@@ -94,9 +94,9 @@ export const ShieldConfigSchema = z.object({
     reasoning_effort_target: z.enum(["remove", "low", "medium", "high"]).default("remove"),
     /**
      * Answer OpenCode session-title requests locally instead of spending quota.
-     * @default true
+     * @default false
      */
-    mock_local_titles: z.boolean().default(true),
+    mock_local_titles: z.boolean().default(false),
     /**
      * Additional find/replace rules applied after the built-in fingerprints.
      * @default []
@@ -110,7 +110,7 @@ export const DEFAULT_SHIELD_CONFIG = {
     normalize_reasoning_effort: true,
     reasoning_effort_source: "any",
     reasoning_effort_target: "remove",
-    mock_local_titles: true,
+    mock_local_titles: false,
     custom_replacements: [],
 };
 /**
