@@ -11,6 +11,6 @@
  * }
  * ```
  */
-export { AntigravityConfigSchema, SignatureCacheConfigSchema, DEFAULT_CONFIG, type AntigravityConfig, type SignatureCacheConfig, } from "./schema.js";
-export { loadConfig, getUserConfigPath, getProjectConfigPath, getDefaultLogsDir, configExists, initRuntimeConfig, getKeepThinking, } from "./loader.js";
+export { AntigravityConfigSchema, SignatureCacheConfigSchema, ShieldConfigSchema, ShieldReplacementSchema, DEFAULT_CONFIG, DEFAULT_SHIELD_CONFIG, type AntigravityConfig, type SignatureCacheConfig, type ShieldConfig, type ShieldReplacement, } from "./schema.js";
+export { loadConfig, getUserConfigPath, getProjectConfigPath, getDefaultLogsDir, configExists, initRuntimeConfig, getKeepThinking, getShieldConfig, } from "./loader.js";
 //# sourceMappingURL=index.d.ts.map

@@ -53,6 +53,51 @@ When `false` (default), thinking is stripped:
 
 ---
 
+## Agent Signature Shield
+
+Ported from [ag-shield](https://github.com/NaWeeDBHR/ag-shield). The shield runs before each request is forwarded and:
+
+- Rewrites agent/framework fingerprints in system and developer prompts (framework names, documentation URLs, runtime markers) that Antigravity can treat as automated traffic.
+- Removes or maps unsupported `reasoning_effort` values that would otherwise return `400 INVALID_ARGUMENT`.
+- Answers OpenCode session-title requests locally, saving one upstream call per new session.
+
+All three features are enabled by default. User messages are not rewritten unless you opt in.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `shield.enabled` | `true` | Master switch for all shield features |
+| `shield.strip_signatures` | `true` | Rewrite agent fingerprints in system/developer prompts |
+| `shield.sanitize_user_messages` | `false` | Also rewrite user messages |
+| `shield.normalize_reasoning_effort` | `true` | Remove or map unsupported reasoning effort values |
+| `shield.reasoning_effort_source` | `"any"` | Only act when the current value equals this (`"any"` matches all) |
+| `shield.reasoning_effort_target` | `"remove"` | Replacement value: `"remove"`, `"low"`, `"medium"`, or `"high"` |
+| `shield.mock_local_titles` | `true` | Answer session-title requests without spending quota |
+| `shield.custom_replacements` | `[]` | Extra find/replace rules (`{ find, replace, isRegex }`) |
+
+```json
+{
+  "shield": {
+    "strip_signatures": true,
+    "mock_local_titles": true,
+    "custom_replacements": [
+      { "find": "my-internal-agent", "replace": "the agent" }
+    ]
+  }
+}
+```
+
+Disable an individual feature (or the whole shield) if you need the original prompt text preserved verbatim:
+
+```json
+{
+  "shield": {
+    "enabled": false
+  }
+}
+```
+
+---
+
 ## Account Rotation
 
 Settings for managing multiple Google accounts.

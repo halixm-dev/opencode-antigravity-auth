@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Agent signature shield (ported from [ag-shield](https://github.com/NaWeeDBHR/ag-shield)):
+  neutralizes agent and framework fingerprints in system prompts, removes or maps
+  unsupported `reasoning_effort` values, and answers session-title requests locally
+  to save quota. Configurable under the `shield` key and enabled by default.
+
 ## [2.1.2] - 2026-10-27
 
 ### Added

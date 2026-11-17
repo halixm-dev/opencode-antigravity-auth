@@ -15,9 +15,14 @@
 export {
   AntigravityConfigSchema,
   SignatureCacheConfigSchema,
+  ShieldConfigSchema,
+  ShieldReplacementSchema,
   DEFAULT_CONFIG,
+  DEFAULT_SHIELD_CONFIG,
   type AntigravityConfig,
   type SignatureCacheConfig,
+  type ShieldConfig,
+  type ShieldReplacement,
 } from "./schema";
 
 export {
@@ -28,4 +33,5 @@ export {
   configExists,
   initRuntimeConfig,
   getKeepThinking,
+  getShieldConfig,
 } from "./loader";

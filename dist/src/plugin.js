@@ -24,6 +24,7 @@ import { initLogger, createLogger } from "./plugin/logger.js";
 import { initHealthTracker, getHealthTracker, initTokenTracker, getTokenTracker } from "./plugin/rotation.js";
 import { refreshAntigravityVersion, ANTIGRAVITY_VERSION_REFRESH_INTERVAL_MS } from "./plugin/version.js";
 import { executeSearch } from "./plugin/search.js";
+import { maybeBuildTitleResponse } from "./plugin/shield/index.js";
 const MAX_OAUTH_ACCOUNTS = 10;
 const MAX_WARMUP_SESSIONS = 1000;
 const MAX_WARMUP_RETRIES = 2;
@@ -1276,6 +1277,14 @@ export const createAntigravityPlugin = (providerId) => async ({ client, director
                                 throw new Error("Antigravity accounts changed; retry the request");
                         };
                         checkLifetime();
+                        // Answer session-title requests locally instead of spending quota.
+                        if (config.shield.enabled && config.shield.mock_local_titles) {
+                            const titleResponse = buildLocalTitleResponse(input, init);
+                            if (titleResponse) {
+                                log.debug("local-title-response", { url: toUrlString(input) });
+                                return titleResponse;
+                            }
+                        }
                         const latestAuth = await getAuth();
                         checkLifetime();
                         if (!isOAuthAuth(latestAuth)) {
@@ -2808,6 +2817,19 @@ function toUrlString(value) {
         return candidate;
     }
     return value.toString();
+}
+/**
+ * Detects session-title requests and answers them locally when possible.
+ * Returns `null` when the request should be forwarded upstream.
+ */
+function buildLocalTitleResponse(input, init) {
+    if (!init || typeof init.body !== "string" || init.body.length === 0) {
+        return null;
+    }
+    const urlString = toUrlString(input);
+    const streaming = urlString.includes("alt=sse") ||
+        urlString.includes(":streamGenerateContent");
+    return maybeBuildTitleResponse(init.body, { streaming });
 }
 function toWarmupStreamUrl(value) {
     const urlString = toUrlString(value);

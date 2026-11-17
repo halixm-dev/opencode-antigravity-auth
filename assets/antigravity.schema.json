@@ -334,6 +334,104 @@
       "default": true,
       "type": "boolean",
       "description": "Enable automatic plugin updates."
+    },
+    "shield": {
+      "default": {
+        "enabled": true,
+        "strip_signatures": true,
+        "sanitize_user_messages": false,
+        "normalize_reasoning_effort": true,
+        "reasoning_effort_source": "any",
+        "reasoning_effort_target": "remove",
+        "mock_local_titles": true,
+        "custom_replacements": []
+      },
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "type": "boolean",
+          "description": "Master switch for all shield features."
+        },
+        "strip_signatures": {
+          "default": true,
+          "type": "boolean",
+          "description": "Rewrite agent/framework fingerprints in system and developer prompts."
+        },
+        "sanitize_user_messages": {
+          "default": false,
+          "type": "boolean",
+          "description": "Also rewrite user messages. Off by default because user content may legitimately reference the agent."
+        },
+        "normalize_reasoning_effort": {
+          "default": true,
+          "type": "boolean",
+          "description": "Remove or map unsupported reasoning_effort values before forwarding."
+        },
+        "reasoning_effort_source": {
+          "default": "any",
+          "type": "string",
+          "description": "Only normalize when the current value equals this. 'any' matches all values."
+        },
+        "reasoning_effort_target": {
+          "default": "remove",
+          "type": "string",
+          "enum": [
+            "remove",
+            "low",
+            "medium",
+            "high"
+          ],
+          "description": "Replacement for reasoning effort values, or 'remove' to drop the field."
+        },
+        "mock_local_titles": {
+          "default": true,
+          "type": "boolean",
+          "description": "Answer OpenCode session-title requests locally instead of spending quota."
+        },
+        "custom_replacements": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "find": {
+                "type": "string",
+                "description": "Text or regular expression source to match."
+              },
+              "replace": {
+                "default": "",
+                "type": "string",
+                "description": "Replacement text."
+              },
+              "isRegex": {
+                "default": false,
+                "type": "boolean",
+                "description": "Treat 'find' as a regular expression source."
+              }
+            },
+            "required": [
+              "find",
+              "replace",
+              "isRegex"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Additional find/replace rules applied after the built-in fingerprints."
+        }
+      },
+      "required": [
+        "enabled",
+        "strip_signatures",
+        "sanitize_user_messages",
+        "normalize_reasoning_effort",
+        "reasoning_effort_source",
+        "reasoning_effort_target",
+        "mock_local_titles",
+        "custom_replacements"
+      ],
+      "additionalProperties": false,
+      "description": "Agent signature shield (ported from ag-shield): neutralizes agent fingerprints, normalizes unsupported reasoning effort values, and answers session-title requests locally."
     }
   },
   "additionalProperties": false

@@ -10,7 +10,7 @@ import {
   type HeaderStyle,
 } from "../constants";
 import { cacheSignature, getCachedSignature } from "./cache";
-import { getKeepThinking } from "./config";
+import { getKeepThinking, getShieldConfig } from "./config";
 import {
   createStreamingTransformer,
   transformSseLine,
@@ -59,6 +59,7 @@ import {
 } from "./thinking-recovery";
 import { sanitizeCrossModelPayloadInPlace } from "./transform/cross-model-sanitizer";
 import { isGemini3Model, isImageGenerationModel, buildImageGenerationConfig, applyGeminiTransforms } from "./transform";
+import { applyShieldToRequestPayload } from "./shield";
 import {
   resolveModelWithTier,
   resolveModelWithVariant,
@@ -876,6 +877,10 @@ export function prepareAntigravityRequest(
           // Use stable session ID for signature caching across multi-turn conversations
           (req as any).sessionId = signatureSessionKey;
           stripInjectedDebugFromRequestPayload(req as Record<string, unknown>);
+          const shieldResult = applyShieldToRequestPayload(req as Record<string, unknown>, getShieldConfig());
+          if (shieldResult.changed) {
+            log.debug("shield", { changes: shieldResult.changes });
+          }
 
           if (isClaude) {
             // Step 0: Sanitize cross-model metadata (strips Gemini signatures when sending to Claude)
@@ -1466,6 +1471,10 @@ export function prepareAntigravityRequest(
 
         stripInjectedDebugFromRequestPayload(requestPayload);
         sanitizeRequestPayloadForAntigravity(requestPayload);
+        const shieldResult = applyShieldToRequestPayload(requestPayload, getShieldConfig());
+        if (shieldResult.changed) {
+          log.debug("shield", { changes: shieldResult.changes });
+        }
 
         const effectiveProjectId = projectId?.trim() || (headerStyle === "antigravity" ? generateSyntheticProjectId() : "");
         resolvedProjectId = effectiveProjectId;

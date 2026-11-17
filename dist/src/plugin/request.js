@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { ANTIGRAVITY_ENDPOINT, GEMINI_CLI_ENDPOINT, GEMINI_CLI_HEADERS, EMPTY_SCHEMA_PLACEHOLDER_NAME, EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION, SKIP_THOUGHT_SIGNATURE, getAntigravityUserAgent, } from "../constants.js";
 import { cacheSignature, getCachedSignature } from "./cache.js";
-import { getKeepThinking } from "./config/index.js";
+import { getKeepThinking, getShieldConfig } from "./config/index.js";
 import { createStreamingTransformer, transformSseLine, transformStreamingPayload, } from "./core/streaming/index.js";
 import { defaultSignatureStore } from "./stores/signature-store.js";
 import { DEBUG_MESSAGE_PREFIX, isDebugEnabled, isDebugTuiEnabled, logAntigravityDebugResponse, logCacheStats, } from "./debug.js";
@@ -11,6 +11,7 @@ import { CLAUDE_TOOL_SYSTEM_INSTRUCTION, CLAUDE_DESCRIPTION_PROMPT, ANTIGRAVITY_
 import { analyzeConversationState, closeToolLoopForThinking, needsThinkingRecovery, } from "./thinking-recovery.js";
 import { sanitizeCrossModelPayloadInPlace } from "./transform/cross-model-sanitizer.js";
 import { isGemini3Model, isImageGenerationModel, buildImageGenerationConfig, applyGeminiTransforms } from "./transform/index.js";
+import { applyShieldToRequestPayload } from "./shield/index.js";
 import { resolveModelWithTier, resolveModelWithVariant, resolveModelForHeaderStyle, isClaudeModel, isClaudeThinkingModel, CLAUDE_THINKING_MAX_OUTPUT_TOKENS, } from "./transform/index.js";
 import { detectErrorType } from "./recovery.js";
 const log = createLogger("request");
@@ -628,6 +629,10 @@ export function prepareAntigravityRequest(input, init, accessToken, projectId, e
                     // Use stable session ID for signature caching across multi-turn conversations
                     req.sessionId = signatureSessionKey;
                     stripInjectedDebugFromRequestPayload(req);
+                    const shieldResult = applyShieldToRequestPayload(req, getShieldConfig());
+                    if (shieldResult.changed) {
+                        log.debug("shield", { changes: shieldResult.changes });
+                    }
                     if (isClaude) {
                         // Step 0: Sanitize cross-model metadata (strips Gemini signatures when sending to Claude)
                         sanitizeCrossModelPayloadInPlace(req, { targetModel: effectiveModel });
@@ -1120,6 +1125,10 @@ export function prepareAntigravityRequest(input, init, accessToken, projectId, e
                 }
                 stripInjectedDebugFromRequestPayload(requestPayload);
                 sanitizeRequestPayloadForAntigravity(requestPayload);
+                const shieldResult = applyShieldToRequestPayload(requestPayload, getShieldConfig());
+                if (shieldResult.changed) {
+                    log.debug("shield", { changes: shieldResult.changes });
+                }
                 const effectiveProjectId = projectId?.trim() || (headerStyle === "antigravity" ? generateSyntheticProjectId() : "");
                 resolvedProjectId = effectiveProjectId;
                 // Inject Antigravity system instruction with role "user" (CLIProxyAPI v6.6.89 compatibility)

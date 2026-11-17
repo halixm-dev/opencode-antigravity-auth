@@ -47,6 +47,73 @@ export const SignatureCacheConfigSchema = z.object({
     write_interval_seconds: z.number().min(10).max(600).default(60),
 });
 /**
+ * A single user-defined signature replacement rule (ag-shield compatible).
+ */
+export const ShieldReplacementSchema = z.object({
+    /** Text or regular expression source to match */
+    find: z.string(),
+    /** Replacement text */
+    replace: z.string().default(""),
+    /** Treat `find` as a regular expression source */
+    isRegex: z.boolean().default(false),
+});
+/**
+ * Agent signature shield configuration (ported from ag-shield).
+ */
+export const ShieldConfigSchema = z.object({
+    /**
+     * Master switch for all shield features.
+     * @default true
+     */
+    enabled: z.boolean().default(true),
+    /**
+     * Rewrite agent/framework fingerprints in system/developer prompts.
+     * @default true
+     */
+    strip_signatures: z.boolean().default(true),
+    /**
+     * Also rewrite user messages. Off by default because user content may
+     * legitimately reference the agent or its documentation.
+     * @default false
+     */
+    sanitize_user_messages: z.boolean().default(false),
+    /**
+     * Remove or map unsupported `reasoning_effort` values.
+     * @default true
+     */
+    normalize_reasoning_effort: z.boolean().default(true),
+    /**
+     * Only normalize when the current value equals this. `"any"` matches all.
+     * @default "any"
+     */
+    reasoning_effort_source: z.string().default("any"),
+    /**
+     * Replacement for reasoning effort values, or `"remove"` to drop the field.
+     * @default "remove"
+     */
+    reasoning_effort_target: z.enum(["remove", "low", "medium", "high"]).default("remove"),
+    /**
+     * Answer OpenCode session-title requests locally instead of spending quota.
+     * @default true
+     */
+    mock_local_titles: z.boolean().default(true),
+    /**
+     * Additional find/replace rules applied after the built-in fingerprints.
+     * @default []
+     */
+    custom_replacements: z.array(ShieldReplacementSchema).default([]),
+});
+export const DEFAULT_SHIELD_CONFIG = {
+    enabled: true,
+    strip_signatures: true,
+    sanitize_user_messages: false,
+    normalize_reasoning_effort: true,
+    reasoning_effort_source: "any",
+    reasoning_effort_target: "remove",
+    mock_local_titles: true,
+    custom_replacements: [],
+};
+/**
  * Main configuration schema for the Antigravity OAuth plugin.
  */
 export const AntigravityConfigSchema = z.object({
@@ -377,6 +444,14 @@ export const AntigravityConfigSchema = z.object({
      * @default true
      */
     auto_update: z.boolean().default(true),
+    // =========================================================================
+    // Agent Signature Shield (ported from ag-shield)
+    // =========================================================================
+    /**
+     * Neutralizes agent fingerprints, normalizes unsupported reasoning effort
+     * values, and answers session-title requests locally.
+     */
+    shield: ShieldConfigSchema.default(DEFAULT_SHIELD_CONFIG),
 });
 /**
  * Default configuration values.
@@ -414,6 +489,7 @@ export const DEFAULT_CONFIG = {
     quota_refresh_interval_minutes: 15,
     soft_quota_cache_ttl_minutes: "auto",
     auto_update: true,
+    shield: { ...DEFAULT_SHIELD_CONFIG },
     signature_cache: {
         enabled: true,
         memory_ttl_seconds: 3600,

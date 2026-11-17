@@ -97,6 +97,11 @@ src/
     ├── storage.ts           # Persistent storage schemas (Zod)
     ├── fingerprint.ts       # Device fingerprint generation & headers
     ├── project.ts           # Managed project context resolution
+    ├── shield/              # Agent signature shield (ag-shield port)
+    │   ├── index.ts         # Combined applyShieldToRequestPayload entry point
+    │   ├── signature-sanitizer.ts # Prompt fingerprint neutralization
+    │   ├── reasoning-effort.ts    # reasoning_effort normalization
+    │   └── title-mock.ts          # Local session-title responses
     └── debug.ts             # Debug logging utilities
 ```
 
@@ -119,6 +124,9 @@ Accounts rotate on rate limits. Gemini has dual quota pools (Antigravity headers
 
 ### 6. Fingerprint System
 Per-account device fingerprints stored in `antigravity-accounts.json`. Each fingerprint includes deviceId, sessionToken, userAgent, and a reduced clientMetadata (ideType, platform, pluginType — no osVersion, arch, or sqmId). The only header composed is `User-Agent`, built by `buildFingerprintHeaders()` in `fingerprint.ts` and applied on the antigravity request path in `request.ts`. History tracked (max 5), restorable.
+
+### 7. Agent Signature Shield
+Ported from [ag-shield](https://github.com/NaWeeDBHR/ag-shield). `applyShieldToRequestPayload()` in `src/plugin/shield/` runs on every request payload before the Antigravity system instruction is injected. It neutralizes agent fingerprints in system/developer prompts, removes or maps unsupported `reasoning_effort` values, and `maybeBuildTitleResponse()` answers OpenCode session-title requests locally from `plugin.ts`. Configured under the `shield` key; user messages are untouched unless `sanitize_user_messages` is enabled.
 
 ## Dependencies
 

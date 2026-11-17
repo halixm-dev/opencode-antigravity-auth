@@ -57,6 +57,39 @@ export declare const SignatureCacheConfigSchema: z.ZodObject<{
     write_interval_seconds: z.ZodDefault<z.ZodNumber>;
 }, z.core.$strip>;
 /**
+ * A single user-defined signature replacement rule (ag-shield compatible).
+ */
+export declare const ShieldReplacementSchema: z.ZodObject<{
+    find: z.ZodString;
+    replace: z.ZodDefault<z.ZodString>;
+    isRegex: z.ZodDefault<z.ZodBoolean>;
+}, z.core.$strip>;
+/**
+ * Agent signature shield configuration (ported from ag-shield).
+ */
+export declare const ShieldConfigSchema: z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    strip_signatures: z.ZodDefault<z.ZodBoolean>;
+    sanitize_user_messages: z.ZodDefault<z.ZodBoolean>;
+    normalize_reasoning_effort: z.ZodDefault<z.ZodBoolean>;
+    reasoning_effort_source: z.ZodDefault<z.ZodString>;
+    reasoning_effort_target: z.ZodDefault<z.ZodEnum<{
+        remove: "remove";
+        low: "low";
+        medium: "medium";
+        high: "high";
+    }>>;
+    mock_local_titles: z.ZodDefault<z.ZodBoolean>;
+    custom_replacements: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        find: z.ZodString;
+        replace: z.ZodDefault<z.ZodString>;
+        isRegex: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strip>>>;
+}, z.core.$strip>;
+export type ShieldReplacement = z.infer<typeof ShieldReplacementSchema>;
+export type ShieldConfig = z.infer<typeof ShieldConfigSchema>;
+export declare const DEFAULT_SHIELD_CONFIG: ShieldConfig;
+/**
  * Main configuration schema for the Antigravity OAuth plugin.
  */
 export declare const AntigravityConfigSchema: z.ZodObject<{
@@ -125,6 +158,25 @@ export declare const AntigravityConfigSchema: z.ZodObject<{
         initial_tokens: z.ZodDefault<z.ZodNumber>;
     }, z.core.$strip>>;
     auto_update: z.ZodDefault<z.ZodBoolean>;
+    shield: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        strip_signatures: z.ZodDefault<z.ZodBoolean>;
+        sanitize_user_messages: z.ZodDefault<z.ZodBoolean>;
+        normalize_reasoning_effort: z.ZodDefault<z.ZodBoolean>;
+        reasoning_effort_source: z.ZodDefault<z.ZodString>;
+        reasoning_effort_target: z.ZodDefault<z.ZodEnum<{
+            remove: "remove";
+            low: "low";
+            medium: "medium";
+            high: "high";
+        }>>;
+        mock_local_titles: z.ZodDefault<z.ZodBoolean>;
+        custom_replacements: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            find: z.ZodString;
+            replace: z.ZodDefault<z.ZodString>;
+            isRegex: z.ZodDefault<z.ZodBoolean>;
+        }, z.core.$strip>>>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export type AntigravityConfig = z.infer<typeof AntigravityConfigSchema>;
 export type SignatureCacheConfig = z.infer<typeof SignatureCacheConfigSchema>;

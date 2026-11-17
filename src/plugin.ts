@@ -51,6 +51,7 @@ import { initLogger, createLogger } from "./plugin/logger";
 import { initHealthTracker, getHealthTracker, initTokenTracker, getTokenTracker } from "./plugin/rotation";
 import { refreshAntigravityVersion, ANTIGRAVITY_VERSION_REFRESH_INTERVAL_MS } from "./plugin/version";
 import { executeSearch } from "./plugin/search";
+import { maybeBuildTitleResponse } from "./plugin/shield";
 import type {
   GetAuth,
   LoaderResult,
@@ -1519,6 +1520,15 @@ export const createAntigravityPlugin = (providerId: string) => async (
             if (disposed || (runtimeVersion === 2 && managerGeneration !== expectedGeneration)) throw new Error("Antigravity accounts changed; retry the request");
           };
           checkLifetime();
+
+          // Answer session-title requests locally instead of spending quota.
+          if (config.shield.enabled && config.shield.mock_local_titles) {
+            const titleResponse = buildLocalTitleResponse(input, init);
+            if (titleResponse) {
+              log.debug("local-title-response", { url: toUrlString(input) });
+              return titleResponse;
+            }
+          }
 
           const latestAuth = await getAuth();
           checkLifetime();
@@ -3424,6 +3434,23 @@ function toUrlString(value: RequestInfo): string {
     return candidate;
   }
   return value.toString();
+}
+
+/**
+ * Detects session-title requests and answers them locally when possible.
+ * Returns `null` when the request should be forwarded upstream.
+ */
+function buildLocalTitleResponse(input: RequestInfo, init: RequestInit | undefined): Response | null {
+  if (!init || typeof init.body !== "string" || init.body.length === 0) {
+    return null;
+  }
+
+  const urlString = toUrlString(input);
+  const streaming =
+    urlString.includes("alt=sse") ||
+    urlString.includes(":streamGenerateContent");
+
+  return maybeBuildTitleResponse(init.body, { streaming });
 }
 
 function toWarmupStreamUrl(value: RequestInfo): string {

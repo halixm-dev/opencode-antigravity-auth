@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { AntigravityConfigSchema, DEFAULT_CONFIG, type AntigravityConfig } from "./schema";
+import { AntigravityConfigSchema, DEFAULT_CONFIG, DEFAULT_SHIELD_CONFIG, type AntigravityConfig, type ShieldConfig } from "./schema";
 import { createLogger } from "../logger";
 
 const log = createLogger("config");
@@ -161,4 +161,12 @@ export function initRuntimeConfig(config: AntigravityConfig): void {
 
 export function getKeepThinking(): boolean {
   return runtimeConfig?.keep_thinking ?? false;
+}
+
+/**
+ * Returns the active shield configuration, falling back to defaults when no
+ * runtime config has been initialized (for example in isolated tests).
+ */
+export function getShieldConfig(): ShieldConfig {
+  return runtimeConfig?.shield ?? DEFAULT_SHIELD_CONFIG;
 }

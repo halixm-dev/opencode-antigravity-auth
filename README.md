@@ -65,6 +65,10 @@ The account list shows the lowest cached quota across Claude, Gemini Pro, and Ge
 
 Accounts are stored in `~/.config/opencode/antigravity-accounts.json`. Back up this file before moving machines; it contains credentials. Disabling an account excludes it from rotation and routine quota checks.
 
+### Agent Signature Shield
+
+Requests are sanitized before they reach Antigravity: agent/framework fingerprints in system prompts are neutralized, unsupported `reasoning_effort` values are removed, and session-title requests are answered locally to save quota. This is enabled by default and can be tuned or disabled under the `shield` key in [configuration](docs/CONFIGURATION.md#agent-signature-shield).
+
 ## Development
 
 ```sh

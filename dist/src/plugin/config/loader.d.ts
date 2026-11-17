@@ -7,7 +7,7 @@
  * 2. User config file
  * 3. Project config file
  */
-import { type AntigravityConfig } from "./schema.js";
+import { type AntigravityConfig, type ShieldConfig } from "./schema.js";
 /**
  * Get the user-level config file path.
  */
@@ -33,4 +33,9 @@ export declare function configExists(path: string): boolean;
 export declare function getDefaultLogsDir(): string;
 export declare function initRuntimeConfig(config: AntigravityConfig): void;
 export declare function getKeepThinking(): boolean;
+/**
+ * Returns the active shield configuration, falling back to defaults when no
+ * runtime config has been initialized (for example in isolated tests).
+ */
+export declare function getShieldConfig(): ShieldConfig;
 //# sourceMappingURL=loader.d.ts.map

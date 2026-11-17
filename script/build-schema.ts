@@ -68,6 +68,26 @@ const optionDescriptions: Record<string, string> = {
     "Interval in minutes between quota usage checks. Set to 0 to disable periodic checks.",
   soft_quota_cache_ttl_minutes:
     "TTL for cached soft quota data. 'auto' (default) calculates from refresh interval, or set a fixed number of minutes.",
+  shield:
+    "Agent signature shield (ported from ag-shield): neutralizes agent fingerprints, normalizes unsupported reasoning effort values, and answers session-title requests locally.",
+};
+
+const shieldDescriptions: Record<string, string> = {
+  enabled: "Master switch for all shield features.",
+  strip_signatures: "Rewrite agent/framework fingerprints in system and developer prompts.",
+  sanitize_user_messages:
+    "Also rewrite user messages. Off by default because user content may legitimately reference the agent.",
+  normalize_reasoning_effort: "Remove or map unsupported reasoning_effort values before forwarding.",
+  reasoning_effort_source: "Only normalize when the current value equals this. 'any' matches all values.",
+  reasoning_effort_target: "Replacement for reasoning effort values, or 'remove' to drop the field.",
+  mock_local_titles: "Answer OpenCode session-title requests locally instead of spending quota.",
+  custom_replacements: "Additional find/replace rules applied after the built-in fingerprints.",
+};
+
+const shieldReplacementDescriptions: Record<string, string> = {
+  find: "Text or regular expression source to match.",
+  replace: "Replacement text.",
+  isRegex: "Treat 'find' as a regular expression source.",
 };
 
 const signatureCacheDescriptions: Record<string, string> = {
@@ -94,6 +114,27 @@ function addDescriptions(schema: Record<string, unknown>): void {
         }
       }
       prop.description = "Signature cache configuration for persisting thinking block signatures. Only used when keep_thinking is enabled.";
+    }
+
+    if (key === "shield" && prop.properties) {
+      const shieldProps = prop.properties as Record<string, Record<string, unknown>>;
+      for (const [shieldKey, shieldProp] of Object.entries(shieldProps)) {
+        if (shieldDescriptions[shieldKey]) {
+          shieldProp.description = shieldDescriptions[shieldKey];
+        }
+
+        if (shieldKey === "custom_replacements" && shieldProp.items) {
+          const items = shieldProp.items as Record<string, unknown>;
+          const itemProps = items.properties as Record<string, Record<string, unknown>> | undefined;
+          if (itemProps) {
+            for (const [replacementKey, replacementProp] of Object.entries(itemProps)) {
+              if (shieldReplacementDescriptions[replacementKey]) {
+                replacementProp.description = shieldReplacementDescriptions[replacementKey];
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
