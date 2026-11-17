@@ -32,3 +32,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify npm package and OAuth modes with OpenCode 2.1.2
+        timeout-minutes: 10
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: node script/verify-package.mjs

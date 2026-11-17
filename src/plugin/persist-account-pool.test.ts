@@ -103,8 +103,8 @@ describe("loadAccounts", () => {
 
     it("preserves activeIndex from storage", async () => {
       const mockStorage = createMockStorage([
-        createMockAccount({ email: "user1@example.com" }),
-        createMockAccount({ email: "user2@example.com" }),
+        createMockAccount({ email: "user1@example.com", refreshToken: "token1" }),
+        createMockAccount({ email: "user2@example.com", refreshToken: "token2" }),
       ], 1);
       vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(mockStorage));
 

@@ -1,4 +1,4 @@
-import type { GoogleSearchConfig } from "./transform/types";
+import type { GoogleSearchConfig } from "./transform/types.js";
 /**
  * Cleans a JSON schema for Antigravity API compatibility.
  * Transforms unsupported features into description hints while preserving semantic information.

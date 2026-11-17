@@ -6,7 +6,7 @@
  * - Tool normalization (function/custom format)
  * - Schema transformation (JSON Schema -> Gemini Schema format)
  */
-import type { RequestPayload, ThinkingConfig, ThinkingTier, GoogleSearchConfig } from "./types";
+import type { RequestPayload, ThinkingConfig, ThinkingTier, GoogleSearchConfig } from "./types.js";
 export declare function toGeminiSchema(schema: unknown): unknown;
 /**
  * Check if a model is a Gemini model (not Claude).

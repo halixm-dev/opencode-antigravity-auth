@@ -7,7 +7,7 @@
  * - System instruction hints for interleaved thinking
  * - Tool normalization (functionDeclarations format)
  */
-import { EMPTY_SCHEMA_PLACEHOLDER_NAME, EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION, } from "../../constants";
+import { EMPTY_SCHEMA_PLACEHOLDER_NAME, EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION, } from "../../constants.js";
 /** Claude thinking models need a sufficiently large max output token limit when thinking is enabled */
 export const CLAUDE_THINKING_MAX_OUTPUT_TOKENS = 64_000;
 /** Interleaved thinking hint appended to system instructions */

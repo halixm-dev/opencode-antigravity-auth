@@ -1,4 +1,4 @@
-import type { ProviderModel } from "../types";
+import type { ProviderModel } from "../types.js";
 export type ModelThinkingLevel = "minimal" | "low" | "medium" | "high";
 export interface ModelThinkingConfig {
     thinkingBudget: number;

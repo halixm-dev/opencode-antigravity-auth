@@ -3,7 +3,7 @@
  *
  * Based on oh-my-opencode/src/hooks/session-recovery/storage.ts
  */
-import type { StoredMessageMeta, StoredPart } from "./types";
+import type { StoredMessageMeta, StoredPart } from "./types.js";
 export declare function generatePartId(): string;
 export declare function getMessageDir(sessionID: string): string;
 export declare function readMessages(sessionID: string): StoredMessageMeta[];

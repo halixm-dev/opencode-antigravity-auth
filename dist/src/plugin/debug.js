@@ -2,8 +2,8 @@ import { createWriteStream, mkdirSync, readdirSync, statSync, unlinkSync } from 
 import { join } from "node:path";
 import { env } from "node:process";
 import { homedir } from "node:os";
-import { deriveDebugPolicy, formatAccountContextLabel, formatAccountLabel, formatBodyPreviewForLog, formatErrorForLog, isTruthyFlag, truncateTextForLog, } from "./logging-utils";
-import { ensureGitignoreSync } from "./storage";
+import { deriveDebugPolicy, formatAccountContextLabel, formatAccountLabel, formatBodyPreviewForLog, formatErrorForLog, isTruthyFlag, truncateTextForLog, } from "./logging-utils.js";
+import { ensureGitignoreSync } from "./storage.js";
 const MAX_BODY_PREVIEW_CHARS = 12000;
 const MAX_BODY_LOG_CHARS = 50000;
 export const DEBUG_MESSAGE_PREFIX = "[opencode-antigravity-auth debug]";

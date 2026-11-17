@@ -15,8 +15,8 @@
  * - Integrates with existing AccountManager and token refresh logic
  * - Silent operation: no console output, uses structured logger
  */
-import { refreshAccessToken } from "./token";
-import { createLogger } from "./logger";
+import { refreshAccessToken } from "./token.js";
+import { createLogger } from "./logger.js";
 const log = createLogger("refresh-queue");
 export const DEFAULT_PROACTIVE_REFRESH_CONFIG = {
     enabled: true,
@@ -36,6 +36,8 @@ export class ProactiveRefreshQueue {
     client;
     providerId;
     accountManager = null;
+    activeCheck;
+    initialTimeout;
     state = {
         isRunning: false,
         intervalHandle: null,
@@ -106,7 +108,17 @@ export class ProactiveRefreshQueue {
      * Perform a single refresh check iteration.
      * This is called periodically by the background interval.
      */
-    async runRefreshCheck() {
+    runRefreshCheck() {
+        if (this.activeCheck)
+            return this.activeCheck;
+        const check = this.refreshAccounts();
+        this.activeCheck = check;
+        return check.finally(() => {
+            if (this.activeCheck === check)
+                this.activeCheck = undefined;
+        });
+    }
+    async refreshAccounts() {
         if (this.state.isRefreshing) {
             // Already refreshing - skip this iteration
             return;
@@ -130,9 +142,10 @@ export class ProactiveRefreshQueue {
                 }
                 try {
                     const auth = this.accountManager.toAuthDetails(account);
+                    const previousToken = account.parts.refreshToken;
                     const refreshed = await this.refreshToken(auth, account);
                     if (refreshed) {
-                        this.accountManager.updateFromAuth(account, refreshed);
+                        this.accountManager.updateFromAuth(account, refreshed, previousToken);
                         this.state.refreshCount++;
                         this.state.lastRefreshTime = Date.now();
                         // Persist the refreshed token
@@ -190,7 +203,7 @@ export class ProactiveRefreshQueue {
             bufferSeconds: this.config.bufferSeconds,
         });
         // Run initial check after a short delay (let things settle)
-        setTimeout(() => {
+        this.initialTimeout = setTimeout(() => {
             if (this.state.isRunning) {
                 this.runRefreshCheck().catch((error) => {
                     log.error("Initial check failed", {
@@ -213,9 +226,12 @@ export class ProactiveRefreshQueue {
      */
     stop() {
         if (!this.state.isRunning) {
-            return;
+            return this.activeCheck ?? Promise.resolve();
         }
         this.state.isRunning = false;
+        if (this.initialTimeout)
+            clearTimeout(this.initialTimeout);
+        this.initialTimeout = undefined;
         if (this.state.intervalHandle) {
             clearInterval(this.state.intervalHandle);
             this.state.intervalHandle = null;
@@ -224,6 +240,7 @@ export class ProactiveRefreshQueue {
             refreshCount: this.state.refreshCount,
             errorCount: this.state.errorCount,
         });
+        return this.activeCheck ?? Promise.resolve();
     }
     /**
      * Get current queue statistics.

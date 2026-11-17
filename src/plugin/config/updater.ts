@@ -5,8 +5,9 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute, resolve } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { OPENCODE_MODEL_DEFINITIONS } from "./models";
 
 // =============================================================================
@@ -19,9 +20,36 @@ export interface UpdateConfigResult {
   error?: string;
 }
 
+type PluginEntry = string | { package: string; options?: Record<string, unknown> };
+type LegacyPluginEntry = PluginEntry | [string, Record<string, unknown>];
+
+function pluginPackage(entry: LegacyPluginEntry): string {
+  return typeof entry === "string" ? entry : Array.isArray(entry) ? entry[0] : entry.package;
+}
+
+function isAntigravityEntry(entry: PluginEntry, configPath: string): boolean {
+  const name = pluginPackage(entry).replace(/^-/, "");
+  if (name === "opencode-antigravity-auth" || name.startsWith("opencode-antigravity-auth@")) return true;
+  const path = name.startsWith("file:") ? fileURLToPath(name)
+    : isAbsolute(name) || name.startsWith(".") ? resolve(dirname(configPath), name) : undefined;
+  if (!path) return false;
+  const manifest = join(path, "package.json");
+  if (existsSync(manifest)) {
+    try {
+      return (JSON.parse(readFileSync(manifest, "utf8")) as { name?: string }).name === "opencode-antigravity-auth";
+    } catch {
+      // An unrelated checkout's malformed manifest must not block config writes.
+      return false;
+    }
+  }
+  return path.includes("opencode-antigravity-auth");
+}
+
 export interface OpencodeConfig {
   $schema?: string;
-  plugin?: string[];
+  plugin?: LegacyPluginEntry[];
+  plugins?: PluginEntry[];
+  providers?: Record<string, Record<string, unknown> & { models?: Record<string, unknown> }>;
   provider?: {
     google?: {
       models?: Record<string, unknown>;
@@ -35,6 +63,8 @@ export interface OpencodeConfig {
 export interface UpdateConfigOptions {
   /** Override the config file path (for testing) */
   configPath?: string;
+  /** V1 remains available for callers using the legacy entrypoint. */
+  version?: 1 | 2;
 }
 
 // =============================================================================
@@ -59,6 +89,7 @@ function stripJsonCommentsAndTrailingCommas(json: string): string {
  * Get the opencode config directory path.
  */
 export function getOpencodeConfigDir(): string {
+  if (process.env.OPENCODE_CONFIG_DIR) return process.env.OPENCODE_CONFIG_DIR;
   const xdgConfig = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
   return join(xdgConfig, "opencode");
 }
@@ -93,13 +124,14 @@ export function getOpencodeConfigPath(): string {
  *
  * This function:
  * 1. Reads existing opencode.json/opencode.jsonc (or creates default structure)
- * 2. Replaces `provider.google.models` with plugin models
+ * 2. Ensures a plugin entry; V1 also writes its model definitions
  * 3. Writes back to disk with proper formatting
  *
  * Preserves:
  * - $schema and other top-level config keys
  * - Non-google provider sections
- * - Other settings within google provider (except models)
+ * - Other settings within google provider (V1 replaces models)
+ * - All provider objects in V2, whose catalog is registered at runtime
  *
  * @param options - Optional configuration (e.g., custom configPath for testing)
  * @returns UpdateConfigResult with success status and path
@@ -118,16 +150,32 @@ export async function updateOpencodeConfig(
       config = JSON.parse(stripJsonCommentsAndTrailingCommas(content)) as OpencodeConfig;
     } else {
       // Create default config structure
-      config = {
-        $schema: SCHEMA_URL,
-        plugin: [],
-        provider: {},
-      };
+      config = options.version === 2
+        ? { $schema: SCHEMA_URL, plugins: [] }
+        : { $schema: SCHEMA_URL, plugin: [], provider: {} };
     }
 
     // Ensure $schema is set
     if (!config.$schema) {
       config.$schema = SCHEMA_URL;
+    }
+
+    if (options.version === 2) {
+      const legacyPlugins = Array.isArray(config.plugin) ? config.plugin : [];
+      // Ordered enable/disable entries can repeat intentionally in V2.
+      config.plugins = [
+        ...legacyPlugins.map((entry) => Array.isArray(entry) ? { package: entry[0], options: entry[1] } : entry),
+        ...(config.plugins ?? []),
+      ];
+      delete config.plugin;
+      const hasPlugin = config.plugins.some((entry) => isAntigravityEntry(entry, configPath));
+      if (!hasPlugin) config.plugins.push(PLUGIN_NAME);
+      // V2 contributes its catalog at runtime. Let Core migrate legacy provider
+      // objects: creating providers.google here would take precedence over the
+      // entire legacy Google provider and hide its settings and custom models.
+      mkdirSync(dirname(configPath), { recursive: true });
+      writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+      return { success: true, configPath };
     }
 
     // Ensure plugin array exists and contains our plugin
@@ -137,7 +185,7 @@ export async function updateOpencodeConfig(
 
     // Check if plugin is already in the list (any version)
     const hasPlugin = config.plugin.some((p) =>
-      p.includes("opencode-antigravity-auth")
+      pluginPackage(p).includes("opencode-antigravity-auth")
     );
     if (!hasPlugin) {
       config.plugin.push(PLUGIN_NAME);

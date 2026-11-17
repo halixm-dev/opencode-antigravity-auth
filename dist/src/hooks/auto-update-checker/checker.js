@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PACKAGE_NAME, NPM_REGISTRY_URL, NPM_FETCH_TIMEOUT, INSTALLED_PACKAGE_JSON, USER_OPENCODE_CONFIG, USER_OPENCODE_CONFIG_JSONC, } from "./constants";
-import { logAutoUpdate } from "./logging";
+import { PACKAGE_NAME, NPM_REGISTRY_URL, NPM_FETCH_TIMEOUT, INSTALLED_PACKAGE_JSON, USER_OPENCODE_CONFIG, USER_OPENCODE_CONFIG_JSONC, } from "./constants.js";
+import { logAutoUpdate } from "./logging.js";
 export function isLocalDevMode(directory) {
     return getLocalDevPath(directory) !== null;
 }

@@ -8,9 +8,9 @@
  *
  * Based on oh-my-opencode/src/hooks/session-recovery/index.ts
  */
-import { createLogger } from "./logger";
-import { logToast } from "./debug";
-import { readParts, findMessagesWithThinkingBlocks, findMessagesWithOrphanThinking, findMessageByIndexNeedingThinking, prependThinkingPart, stripThinkingParts, } from "./recovery/storage";
+import { createLogger } from "./logger.js";
+import { logToast } from "./debug.js";
+import { readParts, findMessagesWithThinkingBlocks, findMessagesWithOrphanThinking, findMessageByIndexNeedingThinking, prependThinkingPart, stripThinkingParts, } from "./recovery/storage.js";
 // =============================================================================
 // Constants
 // =============================================================================

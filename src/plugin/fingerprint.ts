@@ -10,24 +10,7 @@
 
 import * as crypto from "node:crypto";
 import * as os from "node:os";
-import { getAntigravityVersion } from "../constants";
-
-const OS_VERSIONS: Record<string, string[]> = {
-  darwin: ["10.15.7", "11.6.8", "12.6.3", "13.5.2", "14.2.1", "14.5"],
-  win32: ["10.0.19041", "10.0.19042", "10.0.19043", "10.0.22000", "10.0.22621", "10.0.22631"],
-  linux: ["5.15.0", "5.19.0", "6.1.0", "6.2.0", "6.5.0", "6.6.0"],
-};
-
-const ARCHITECTURES = ["x64", "arm64"];
-
-const IDE_TYPES = [
-  "ANTIGRAVITY",
-] as const;
-
-const PLATFORMS = [
-  "WINDOWS",
-  "MACOS",
-] as const;
+import { getAntigravityUserAgent } from "../constants";
 
 const SDK_CLIENTS = [
   "google-cloud-sdk vscode_cloudshelleditor/0.1",
@@ -35,6 +18,9 @@ const SDK_CLIENTS = [
   "google-cloud-sdk vscode/1.87.0",
   "google-cloud-sdk vscode/1.96.0",
 ];
+
+/** Matches the Hub User-Agent, which always reports the darwin/arm64 manifest build. */
+const HUB_METADATA_PLATFORM = "MACOS";
 
 export interface ClientMetadata {
   ideType: string;
@@ -70,9 +56,6 @@ export interface FingerprintHeaders {
   "User-Agent": string;
 }
 
-const PLATFORM_CHOICES = ["darwin", "win32"] as const;
-type PlatformChoice = typeof PLATFORM_CHOICES[number];
-
 function randomFrom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
@@ -91,21 +74,18 @@ function generateSessionToken(): string {
 
 /**
  * Generate a randomized device fingerprint.
- * Each fingerprint represents a unique "device" identity.
+ * Each fingerprint represents a unique "device" identity. The userAgent is the
+ * shared Hub User-Agent because Cloud Code ties it to the release and build CL.
  */
 export function generateFingerprint(): Fingerprint {
-  const platform = randomFrom(PLATFORM_CHOICES);
-  const arch = randomFrom(ARCHITECTURES);
-  const osVersion = randomFrom(OS_VERSIONS[platform] ?? OS_VERSIONS.darwin!);
-
   return {
     deviceId: generateDeviceId(),
     sessionToken: generateSessionToken(),
-    userAgent: `antigravity/${getAntigravityVersion()} ${platform}/${arch}`,
+    userAgent: getAntigravityUserAgent(),
     apiClient: randomFrom(SDK_CLIENTS),
     clientMetadata: {
-      ideType: randomFrom(IDE_TYPES),
-      platform: platformToDisplayName(platform),
+      ideType: "ANTIGRAVITY",
+      platform: HUB_METADATA_PLATFORM,
       pluginType: "GEMINI",
     },
     createdAt: Date.now(),
@@ -114,20 +94,17 @@ export function generateFingerprint(): Fingerprint {
 
 /**
  * Collect fingerprint based on actual current system.
- * Uses real OS info instead of randomized values.
+ * Uses real OS info for stored metadata; the userAgent is still the Hub User-Agent.
  */
 export function collectCurrentFingerprint(): Fingerprint {
-  const platform = os.platform();
-  const arch = os.arch();
-
   return {
     deviceId: generateDeviceId(),
     sessionToken: generateSessionToken(),
-    userAgent: `antigravity/${getAntigravityVersion()} ${platform}/${arch}`,
+    userAgent: getAntigravityUserAgent(),
     apiClient: "google-cloud-sdk vscode_cloudshelleditor/0.1",
     clientMetadata: {
       ideType: "ANTIGRAVITY",
-      platform: platformToDisplayName(platform),
+      platform: platformToDisplayName(os.platform()),
       pluginType: "GEMINI",
     },
     createdAt: Date.now(),
@@ -135,26 +112,25 @@ export function collectCurrentFingerprint(): Fingerprint {
 }
 
 /**
- * Update the version in a fingerprint's userAgent to match the current runtime version.
- * Called after version fetcher resolves so saved fingerprints always carry the latest version.
+ * Migrate a fingerprint's userAgent to the current Hub User-Agent.
+ * Saved fingerprints may carry a legacy `antigravity/<version> <os>/<arch>` agent or
+ * an older Hub release. Requests never send the stored value; this keeps storage in sync.
  * Returns true if the userAgent was changed.
  */
 export function updateFingerprintVersion(fingerprint: Fingerprint): boolean {
-  const currentVersion = getAntigravityVersion();
-  const versionPattern = /^(antigravity\/)([\d.]+)/;
-  const match = fingerprint.userAgent.match(versionPattern);
-
-  if (!match || match[2] === currentVersion) {
+  const currentUserAgent = getAntigravityUserAgent();
+  if (fingerprint.userAgent === currentUserAgent) {
     return false;
   }
 
-  fingerprint.userAgent = fingerprint.userAgent.replace(versionPattern, `$1${currentVersion}`);
+  fingerprint.userAgent = currentUserAgent;
   return true;
 }
 
 /**
  * Build HTTP headers from a fingerprint object.
- * These headers are used to identify the "device" making API requests.
+ * The User-Agent is resolved at call time from the current Hub version, so a stale
+ * stored fingerprint userAgent is never sent.
  */
 export function buildFingerprintHeaders(fingerprint: Fingerprint | null): Partial<FingerprintHeaders> {
   if (!fingerprint) {
@@ -162,7 +138,7 @@ export function buildFingerprintHeaders(fingerprint: Fingerprint | null): Partia
   }
 
   return {
-    "User-Agent": fingerprint.userAgent,
+    "User-Agent": getAntigravityUserAgent(),
   };
 }
 

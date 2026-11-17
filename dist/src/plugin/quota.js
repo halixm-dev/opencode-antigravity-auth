@@ -1,9 +1,9 @@
-import { ANTIGRAVITY_ENDPOINT_PROD, getAntigravityHeaders, ANTIGRAVITY_PROVIDER_ID, } from "../constants";
-import { accessTokenExpired, formatRefreshParts, parseRefreshParts } from "./auth";
-import { logQuotaFetch, logQuotaStatus } from "./debug";
-import { ensureProjectContext } from "./project";
-import { refreshAccessToken } from "./token";
-import { getModelFamily } from "./transform/model-resolver";
+import { ANTIGRAVITY_ENDPOINT, ANTIGRAVITY_ENDPOINT_PROD, getAntigravityUserAgent, getRandomizedHeaders, ANTIGRAVITY_PROVIDER_ID, } from "../constants.js";
+import { accessTokenExpired, formatRefreshParts, parseRefreshParts } from "./auth.js";
+import { logQuotaFetch, logQuotaStatus } from "./debug.js";
+import { ensureProjectContext } from "./project.js";
+import { refreshAccessToken } from "./token.js";
+import { getModelFamily } from "./transform/model-resolver.js";
 const FETCH_TIMEOUT_MS = 10000;
 function buildAuthFromAccount(account) {
     return {
@@ -42,20 +42,35 @@ function classifyQuotaGroup(modelName, displayName) {
     if (combined.includes("claude")) {
         return "claude";
     }
-    const isGemini3 = combined.includes("gemini-3") || combined.includes("gemini 3");
-    if (!isGemini3) {
+    if (!combined.includes("gemini")) {
         return null;
     }
     const family = getModelFamily(modelName);
     return family === "gemini-flash" ? "gemini-flash" : "gemini-pro";
 }
-function aggregateQuota(models) {
+function aggregateQuota(models, selectable) {
     const groups = {};
+    const catalog = {};
     if (!models) {
         return { groups, modelCount: 0 };
     }
     let totalCount = 0;
     for (const [modelName, entry] of Object.entries(models)) {
+        if (!entry || typeof entry !== "object") {
+            continue;
+        }
+        // Keep only catalog metadata. API experiments can contain unrelated prompts.
+        catalog[modelName] = {
+            displayName: entry.displayName,
+            maxTokens: entry.maxTokens,
+            maxOutputTokens: entry.maxOutputTokens,
+            supportsImages: entry.supportsImages,
+            supportsThinking: entry.supportsThinking,
+            disabled: entry.disabled,
+            selectable: selectable ? selectable.has(modelName) : undefined,
+        };
+        if (entry.disabled)
+            continue;
         const group = classifyQuotaGroup(modelName, entry.displayName ?? entry.modelName);
         if (!group) {
             continue;
@@ -74,6 +89,13 @@ function aggregateQuota(models) {
             : existing?.remainingFraction === undefined
                 ? remainingFraction
                 : Math.min(existing.remainingFraction, remainingFraction);
+        let remainingFractionResetTime = existing?.remainingFractionResetTime;
+        if (remainingFraction !== undefined && (existing?.remainingFraction === undefined || remainingFraction < existing.remainingFraction)) {
+            remainingFractionResetTime = resetTimestamp === null ? undefined : resetTime;
+        }
+        else if (remainingFraction !== undefined && remainingFraction === existing?.remainingFraction && !remainingFractionResetTime && resetTimestamp !== null) {
+            remainingFractionResetTime = resetTime;
+        }
         let nextResetTime = existing?.resetTime;
         if (resetTimestamp !== null) {
             if (!existing?.resetTime) {
@@ -89,10 +111,11 @@ function aggregateQuota(models) {
         groups[group] = {
             remainingFraction: nextRemaining,
             resetTime: nextResetTime,
+            remainingFractionResetTime,
             modelCount: nextCount,
         };
     }
-    return { groups, modelCount: totalCount };
+    return { groups, modelCount: totalCount, models: catalog };
 }
 async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
     const controller = new AbortController();
@@ -105,8 +128,9 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
     }
 }
 async function fetchAvailableModels(accessToken, projectId) {
-    const endpoint = ANTIGRAVITY_ENDPOINT_PROD;
-    const quotaUserAgent = getAntigravityHeaders()["User-Agent"] || "antigravity/windows/amd64";
+    // Antigravity quota comes from the same host and Hub User-Agent as content requests.
+    const endpoint = ANTIGRAVITY_ENDPOINT;
+    const quotaUserAgent = getAntigravityUserAgent();
     const errors = [];
     const body = projectId ? { project: projectId } : {};
     const response = await fetchWithTimeout(`${endpoint}/v1internal:fetchAvailableModels`, {
@@ -128,18 +152,14 @@ async function fetchAvailableModels(accessToken, projectId) {
 }
 async function fetchGeminiCliQuota(accessToken, projectId) {
     const endpoint = ANTIGRAVITY_ENDPOINT_PROD;
-    // Use Gemini CLI user-agent to get CLI quota buckets (not Antigravity buckets)
-    const platform = process.platform || "darwin";
-    const arch = process.arch || "arm64";
-    const geminiCliUserAgent = `GeminiCLI/1.0.0/gemini-2.5-pro (${platform}; ${arch})`;
     const body = projectId ? { project: projectId } : {};
     try {
         const response = await fetchWithTimeout(`${endpoint}/v1internal:retrieveUserQuota`, {
             method: "POST",
             headers: {
+                ...getRandomizedHeaders("gemini-cli"),
                 Authorization: `Bearer ${accessToken}`,
                 "Content-Type": "application/json",
-                "User-Agent": geminiCliUserAgent,
             },
             body: JSON.stringify(body),
         });
@@ -164,12 +184,9 @@ function aggregateGeminiCliQuota(response) {
         if (!bucket.modelId) {
             continue;
         }
-        // Filter out models we don't care about for Gemini CLI quotas
-        // Only show gemini-3-* and gemini-2.5-pro models (the premium ones)
+        // Keep the model versions returned by Google instead of a dated allowlist.
         const modelId = bucket.modelId;
-        const isRelevantModel = modelId.startsWith("gemini-3-") ||
-            modelId === "gemini-2.5-pro";
-        if (!isRelevantModel) {
+        if (!modelId.startsWith("gemini-")) {
             continue;
         }
         models.push({
@@ -198,13 +215,19 @@ function applyAccountUpdates(account, auth) {
         updated.managedProjectId !== account.managedProjectId;
     return changed ? updated : undefined;
 }
-export async function checkAccountsQuota(accounts, client, providerId = ANTIGRAVITY_PROVIDER_ID) {
+export async function checkAccountsQuota(accounts, client, providerId = ANTIGRAVITY_PROVIDER_ID, options = {}) {
     const results = [];
     logQuotaFetch("start", accounts.length);
     for (const [index, account] of accounts.entries()) {
         const disabled = account.enabled === false;
+        if (disabled && options.includeDisabled !== true) {
+            results.push({ index, email: account.email, status: "disabled", disabled: true });
+            continue;
+        }
         let auth = buildAuthFromAccount(account);
+        let updatedAccount;
         try {
+            options.signal?.throwIfAborted();
             if (accessTokenExpired(auth)) {
                 const refreshed = await refreshAccessToken(auth, client, providerId);
                 if (!refreshed) {
@@ -212,9 +235,18 @@ export async function checkAccountsQuota(accounts, client, providerId = ANTIGRAV
                 }
                 auth = refreshed;
             }
+            updatedAccount = applyAccountUpdates(account, auth);
+            if (updatedAccount)
+                await options.onAccountUpdated?.(account, updatedAccount);
+            options.signal?.throwIfAborted();
+            const beforeProject = updatedAccount ?? account;
             const projectContext = await ensureProjectContext(auth);
             auth = projectContext.auth;
-            const updatedAccount = applyAccountUpdates(account, auth);
+            updatedAccount = applyAccountUpdates(account, auth);
+            const projectUpdates = applyAccountUpdates(beforeProject, auth);
+            if (projectUpdates)
+                await options.onAccountUpdated?.(beforeProject, projectUpdates);
+            options.signal?.throwIfAborted();
             let quotaResult;
             let geminiCliQuotaResult;
             // Fetch both Antigravity and Gemini CLI quotas in parallel
@@ -232,7 +264,11 @@ export async function checkAccountsQuota(accounts, client, providerId = ANTIGRAV
                 };
             }
             else {
-                quotaResult = aggregateQuota(antigravityResponse.models);
+                const visible = (antigravityResponse.agentModelSorts ?? []).flatMap(sort => (sort.groups ?? []).flatMap(group => group.modelIds ?? []));
+                // The backend also exposes obsolete aliases, completion models, and
+                // routing IDs. Prefer the same selectable inventory as Antigravity.
+                const selectable = visible.length ? new Set([...visible, ...Object.values(antigravityResponse.tieredModelIds ?? {}).flat()]) : undefined;
+                quotaResult = aggregateQuota(antigravityResponse.models, selectable);
             }
             // Process Gemini CLI quota
             geminiCliQuotaResult = aggregateGeminiCliQuota(geminiCliResponse);
@@ -261,6 +297,7 @@ export async function checkAccountsQuota(accounts, client, providerId = ANTIGRAV
                 index,
                 email: account.email,
                 status: "error",
+                updatedAccount,
                 disabled,
                 error: error instanceof Error ? error.message : String(error),
             });

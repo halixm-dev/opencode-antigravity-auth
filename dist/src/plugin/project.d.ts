@@ -1,4 +1,4 @@
-import type { OAuthAuthDetails, ProjectContextResult } from "./types";
+import type { OAuthAuthDetails, ProjectContextResult } from "./types.js";
 interface AntigravityUserTier {
     id?: string;
     isDefault?: boolean;
@@ -18,11 +18,11 @@ interface LoadCodeAssistPayload {
  */
 export declare function invalidateProjectContextCache(refresh?: string): void;
 /**
- * Loads managed project information for the given access token and optional project.
+ * Loads managed project information for the given access token from the Antigravity host.
  */
-export declare function loadManagedProject(accessToken: string, projectId?: string): Promise<LoadCodeAssistPayload | null>;
+export declare function loadManagedProject(accessToken: string): Promise<LoadCodeAssistPayload | null>;
 /**
- * Onboards a managed project for the user, optionally retrying until completion.
+ * Onboards a managed project for the user, polling until the operation completes.
  */
 export declare function onboardManagedProject(accessToken: string, tierId: string, projectId?: string, attempts?: number, delayMs?: number): Promise<string | undefined>;
 /**

@@ -1,6 +1,6 @@
-import { ANSI } from './ansi';
-import { select } from './select';
-import { confirm } from './confirm';
+import { ANSI } from './ansi.js';
+import { select } from './select.js';
+import { confirm } from './confirm.js';
 function formatRelativeTime(timestamp) {
     if (!timestamp)
         return 'never';
@@ -106,5 +106,5 @@ export async function showAccountDetails(account) {
         return result ?? 'cancel';
     }
 }
-export { isTTY } from './ansi';
+export { isTTY } from './ansi.js';
 //# sourceMappingURL=auth-menu.js.map

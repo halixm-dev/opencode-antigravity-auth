@@ -10,8 +10,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { AntigravityConfigSchema, DEFAULT_CONFIG } from "./schema";
-import { createLogger } from "../logger";
+import { AntigravityConfigSchema, DEFAULT_CONFIG } from "./schema.js";
+import { createLogger } from "../logger.js";
 const log = createLogger("config");
 // =============================================================================
 // Path Utilities

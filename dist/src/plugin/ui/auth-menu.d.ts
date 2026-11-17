@@ -29,5 +29,5 @@ export type AuthMenuAction = {
 export type AccountAction = 'back' | 'delete' | 'refresh' | 'toggle' | 'verify' | 'cancel';
 export declare function showAuthMenu(accounts: AccountInfo[]): Promise<AuthMenuAction>;
 export declare function showAccountDetails(account: AccountInfo): Promise<AccountAction>;
-export { isTTY } from './ansi';
+export { isTTY } from './ansi.js';
 //# sourceMappingURL=auth-menu.d.ts.map

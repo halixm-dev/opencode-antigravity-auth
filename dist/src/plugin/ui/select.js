@@ -1,4 +1,4 @@
-import { ANSI, isTTY, parseKey } from './ansi';
+import { ANSI, isTTY, parseKey } from './ansi.js';
 const ESCAPE_TIMEOUT_MS = 50;
 const ANSI_REGEX = new RegExp("\\x1b\\[[0-9;]*m", "g");
 const ANSI_LEADING_REGEX = new RegExp("^\\x1b\\[[0-9;]*m");

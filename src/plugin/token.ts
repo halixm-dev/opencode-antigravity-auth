@@ -79,14 +79,55 @@ export class AntigravityTokenRefreshError extends Error {
   }
 }
 
-/**
- * Refreshes an Antigravity OAuth access token, updates persisted credentials, and handles revocation.
- */
+interface RefreshState {
+  pending: Map<string, Promise<OAuthAuthDetails | undefined>>;
+  rotated: Map<string, OAuthAuthDetails>;
+}
+
+const refreshStates = new WeakMap<PluginClient, RefreshState>();
+
+/** Share rotations across native auth, transport, discovery, and quota checks. */
 export async function refreshAccessToken(
   auth: OAuthAuthDetails,
   client: PluginClient,
   providerId: string,
 ): Promise<OAuthAuthDetails | undefined> {
+  const token = parseRefreshParts(auth.refresh).refreshToken;
+  if (!token) return undefined;
+  let state = refreshStates.get(client);
+  if (!state) {
+    state = { pending: new Map(), rotated: new Map() };
+    refreshStates.set(client, state);
+  }
+  const key = `${providerId}:${token}`;
+  const cached = state.rotated.get(key);
+  if (cached && (cached.expires ?? 0) <= Date.now() + 60_000) state.rotated.delete(key);
+  let refreshed = state.rotated.get(key);
+  if (!refreshed) {
+    let pending = state.pending.get(key);
+    if (!pending) {
+      pending = requestAccessToken(auth);
+      state.pending.set(key, pending);
+    }
+    try {
+      refreshed = await pending;
+      if (refreshed && parseRefreshParts(refreshed.refresh).refreshToken !== token) {
+        state.rotated.set(key, refreshed);
+        if (state.rotated.size > 128) state.rotated.delete(state.rotated.keys().next().value!);
+      }
+    } finally {
+      if (state.pending.get(key) === pending) state.pending.delete(key);
+    }
+  }
+  if (!refreshed) return undefined;
+  // Project context belongs to the caller, even when OAuth work is shared.
+  return { ...auth, access: refreshed.access, expires: refreshed.expires, refresh: formatRefreshParts({
+    ...parseRefreshParts(auth.refresh),
+    refreshToken: parseRefreshParts(refreshed.refresh).refreshToken,
+  }) };
+}
+
+async function requestAccessToken(auth: OAuthAuthDetails): Promise<OAuthAuthDetails | undefined> {
   const parts = parseRefreshParts(auth.refresh);
   if (!parts.refreshToken) {
     return undefined;

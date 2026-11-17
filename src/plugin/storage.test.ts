@@ -3,9 +3,15 @@ import {
   deduplicateAccountsByEmail,
   migrateV2ToV3,
   loadAccounts,
+  saveAccounts,
+  matchesAccountToken,
+  updateAccountCredentials,
+  type AccountMetadataV3,
   type AccountMetadata,
   type AccountStorage,
+  type AccountStorageV4,
 } from "./storage";
+import { AccountManager } from "./accounts";
 import { promises as fs } from "node:fs";
 import {
   existsSync,
@@ -19,6 +25,18 @@ vi.mock("proper-lockfile", () => ({
     lock: vi.fn().mockResolvedValue(vi.fn().mockResolvedValue(undefined)),
   },
 }));
+
+describe("native connection identity", () => {
+  it("recognizes original and intermediate native credentials after repeated rotation without email", () => {
+    const account: AccountMetadataV3 = { id: "persistent-id", refreshToken: "first-token", addedAt: 1, lastUsed: 1, enabled: false };
+    updateAccountCredentials(account, { refreshToken: "second-token" });
+    updateAccountCredentials(account, { refreshToken: "third-token", managedProjectId: "resolved-project" });
+    for (const token of ["first-token", "second-token", "third-token"]) expect(matchesAccountToken(account, token)).toBe(true);
+    expect(matchesAccountToken(account, "unrelated-token")).toBe(false);
+    expect(account).toMatchObject({ id: "persistent-id", enabled: false, refreshToken: "third-token", managedProjectId: "resolved-project" });
+    expect(JSON.stringify(account.refreshTokenHashes)).not.toContain("token");
+  });
+});
 
 describe("deduplicateAccountsByEmail", () => {
   it("returns empty array for empty input", () => {
@@ -222,12 +240,273 @@ vi.mock("node:fs", async () => {
       unlink: vi.fn(),
       rename: vi.fn().mockResolvedValue(undefined),
       appendFile: vi.fn(),
+      chmod: vi.fn().mockResolvedValue(undefined),
     },
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
     appendFileSync: vi.fn(),
   };
+});
+
+describe("Account selection normalization", () => {
+  const account = (refreshToken: string, email?: string) => ({
+    refreshToken,
+    email,
+    addedAt: 1,
+    lastUsed: 1,
+  });
+
+  function mockStorage(storage: unknown): void {
+    vi.mocked(fs.readFile).mockImplementation((path) =>
+      Promise.resolve(
+        String(path).endsWith(".gitignore") ? "" : JSON.stringify(storage),
+      ),
+    );
+  }
+
+  function savedStorage(): AccountStorageV4 {
+    const saveCall = vi.mocked(fs.writeFile).mock.calls.find(
+      (call) => String(call[0]).endsWith(".tmp"),
+    );
+    if (!saveCall) throw new Error("Storage was not saved");
+    return JSON.parse(String(saveCall[1]));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps the fresh login selected for both families after 14 accounts become 13", async () => {
+    const accounts = Array.from({ length: 13 }, (_, i) =>
+      account(`revoked-${i}`, `user-${i}@example.com`),
+    );
+    accounts.push({
+      ...account("fresh-token", "user-4@example.com"),
+      addedAt: 2,
+      lastUsed: 2,
+    });
+    mockStorage({
+      version: 4,
+      accounts,
+      activeIndex: 13,
+      activeIndexByFamily: { claude: 13, gemini: 13 },
+    });
+
+    const loaded = await loadAccounts();
+
+    expect(loaded?.accounts.map((a) => a.refreshToken)).toEqual(
+      accounts.filter((a) => a.refreshToken !== "revoked-4").map((a) => a.refreshToken),
+    );
+    expect(loaded?.activeIndex).toBe(12);
+    expect(loaded?.activeIndexByFamily).toEqual({ claude: 12, gemini: 12 });
+    const manager = new AccountManager(undefined, loaded);
+    expect(manager.getCurrentOrNextForFamily("claude")?.parts.refreshToken).toBe("fresh-token");
+    expect(manager.getCurrentOrNextForFamily("gemini")?.parts.refreshToken).toBe("fresh-token");
+  });
+
+  it("follows the email winner when the selected token is deduplicated", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [
+        account("old-token", "same@example.com"),
+        account("other-token", "other@example.com"),
+        { ...account("new-token", "same@example.com"), lastUsed: 2 },
+        account("last-token"),
+      ],
+      activeIndex: 0,
+      activeIndexByFamily: { claude: 1, gemini: 3 },
+    });
+
+    const loaded = await loadAccounts();
+
+    expect(loaded?.activeIndex).toBe(1);
+    expect(loaded?.accounts[loaded.activeIndex]?.refreshToken).toBe("new-token");
+    expect(loaded?.activeIndexByFamily).toEqual({ claude: 0, gemini: 2 });
+  });
+
+  it("preserves token identity before considering a matching email", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [
+        account("selected-token", "old@example.com"),
+        account("selected-token", "updated@example.com"),
+        { ...account("replacement-token", "old@example.com"), lastUsed: 2 },
+      ],
+      activeIndex: 0,
+      activeIndexByFamily: { claude: 0 },
+    });
+
+    const loaded = await loadAccounts();
+
+    expect(loaded?.activeIndex).toBe(0);
+    expect(loaded?.activeIndexByFamily).toEqual({ claude: 0 });
+    expect(loaded?.accounts[0]?.refreshToken).toBe("selected-token");
+  });
+
+  it("remaps independent selections after filtering invalid rows", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [
+        null,
+        { refreshToken: 123, email: "invalid@example.com" },
+        account("selected-token"),
+        account("other-token"),
+      ],
+      activeIndex: 2,
+      activeIndexByFamily: { claude: 3, gemini: 2 },
+    });
+
+    const loaded = await loadAccounts();
+
+    expect(loaded?.accounts.map((a) => a.refreshToken)).toEqual(["selected-token", "other-token"]);
+    expect(loaded?.activeIndex).toBe(0);
+    expect(loaded?.activeIndexByFamily).toEqual({ claude: 1, gemini: 0 });
+  });
+
+  it.each([undefined, null, "1", -1, 1.5, 99, NaN, Infinity])(
+    "falls back from invalid global index %s to zero",
+    async (activeIndex) => {
+      mockStorage({
+        version: 4,
+        accounts: [account("first-token"), account("second-token")],
+        activeIndex,
+      });
+
+      const loaded = await loadAccounts();
+
+      expect(loaded?.activeIndex).toBe(0);
+      expect(loaded?.activeIndexByFamily).toBeUndefined();
+    },
+  );
+
+  it.each([null, "0", -1, 0.5, 99, NaN, Infinity])(
+    "falls back from invalid family index %s to the remapped global selection",
+    async (invalidIndex) => {
+      mockStorage({
+        version: 4,
+        accounts: [
+          account("old-token", "same@example.com"),
+          account("other-token"),
+          { ...account("new-token", "same@example.com"), lastUsed: 2 },
+        ],
+        activeIndex: 2,
+        activeIndexByFamily: { claude: invalidIndex, gemini: invalidIndex },
+      });
+
+      const loaded = await loadAccounts();
+
+      expect(loaded?.activeIndex).toBe(1);
+      expect(loaded?.activeIndexByFamily).toEqual({ claude: 1, gemini: 1 });
+    },
+  );
+
+  it("uses the global selection when a selected row was filtered out", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [account("first-token"), null, account("selected-token")],
+      activeIndex: 2,
+      activeIndexByFamily: { gemini: 1 },
+    });
+
+    const loaded = await loadAccounts();
+
+    expect(loaded?.activeIndex).toBe(1);
+    expect(loaded?.activeIndexByFamily).toEqual({ gemini: 1 });
+  });
+
+  it("normalizes empty results to zero without adding missing family fields", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [null, {}],
+      activeIndex: 1,
+      activeIndexByFamily: { claude: 1 },
+    });
+
+    expect(await loadAccounts()).toEqual({
+      version: 4,
+      accounts: [],
+      activeIndex: 0,
+      activeIndexByFamily: { claude: 0 },
+    });
+  });
+
+  it("preserves incoming selected identities through merge reordering and append", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [account("a"), account("b")],
+      activeIndex: 0,
+    });
+
+    await saveAccounts({
+      version: 4,
+      accounts: [account("b"), account("a"), account("c")],
+      activeIndex: 0,
+      activeIndexByFamily: { claude: 1, gemini: 2 },
+    });
+
+    const saved = savedStorage();
+    expect(saved.accounts.map((a) => a.refreshToken)).toEqual(["a", "b", "c"]);
+    expect(saved.activeIndex).toBe(1);
+    expect(saved.activeIndexByFamily).toEqual({ claude: 0, gemini: 2 });
+  });
+
+  it("replaces a rotated token by stable identity even when usage timestamps are equal", async () => {
+    const original = { ...account("old-token", "same@example.com"), id: "stable-id" };
+    mockStorage({ version: 4, accounts: [original], activeIndex: 0 });
+    await saveAccounts({ version: 4, accounts: [{ ...original, refreshToken: "rotated-token" }], activeIndex: 0 });
+    expect(savedStorage().accounts).toHaveLength(1);
+    expect(savedStorage().accounts[0]).toMatchObject({ ...original, refreshToken: "rotated-token" });
+  });
+
+  it("remaps to the retained email winner when merge removes the selected token", async () => {
+    mockStorage({
+      version: 4,
+      accounts: [
+        { ...account("new-token", "same@example.com"), lastUsed: 3 },
+        account("other-token"),
+      ],
+      activeIndex: 0,
+    });
+
+    await saveAccounts({
+      version: 4,
+      accounts: [account("old-token", "same@example.com"), account("other-token")],
+      activeIndex: 0,
+      activeIndexByFamily: { claude: 0, gemini: 1 },
+    });
+
+    const saved = savedStorage();
+    expect(saved.accounts.map((a) => a.refreshToken)).toEqual(["new-token", "other-token"]);
+    expect(saved.activeIndex).toBe(0);
+    expect(saved.activeIndexByFamily).toEqual({ claude: 0, gemini: 1 });
+  });
+
+  it.each([1, 2, 3, 4])("normalizes version %s storage on load and save", async (version) => {
+    const accounts = [
+      account("old-token", "same@example.com"),
+      account("other-token"),
+      { ...account("new-token", "same@example.com"), lastUsed: 2 },
+    ];
+    mockStorage({
+      version,
+      accounts,
+      activeIndex: 2,
+      ...(version >= 3 ? { activeIndexByFamily: { claude: 0, gemini: 1 } } : {}),
+    });
+
+    const loaded = await loadAccounts();
+    expect(loaded?.accounts.map((a) => a.refreshToken)).toEqual(["other-token", "new-token"]);
+    expect(loaded?.activeIndex).toBe(1);
+    expect(loaded?.activeIndexByFamily).toEqual(version >= 3 ? { claude: 1, gemini: 0 } : undefined);
+    if (!loaded) throw new Error("Storage was not loaded");
+    if (version === 4) await saveAccounts(loaded);
+
+    const saved = savedStorage();
+    expect(saved.accounts.map((a) => a.refreshToken)).toEqual(["other-token", "new-token"]);
+    expect(saved.activeIndex).toBe(1);
+    expect(saved.activeIndexByFamily).toEqual(loaded.activeIndexByFamily);
+  });
 });
 
 describe("Storage Migration", () => {

@@ -1,5 +1,5 @@
 import type { PluginInput } from "@opencode-ai/plugin";
-import type { AntigravityTokenExchangeResult } from "../antigravity/oauth";
+import type { AntigravityTokenExchangeResult } from "../antigravity/oauth.js";
 export interface OAuthAuthDetails {
     type: "oauth";
     refresh: string;
@@ -30,10 +30,36 @@ export interface LoaderResult {
     apiKey: string;
     fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
 }
-export type PluginClient = PluginInput["client"];
+type ClientMethod<T extends (...args: never[]) => unknown> = (...args: Parameters<T>) => Promise<unknown>;
+/** The transport only needs this small, version-independent client surface. */
+export interface PluginClient {
+    app: {
+        log: ClientMethod<PluginInput["client"]["app"]["log"]>;
+    };
+    auth: {
+        set: ClientMethod<PluginInput["client"]["auth"]["set"]>;
+    };
+    tui: {
+        showToast: ClientMethod<PluginInput["client"]["tui"]["showToast"]>;
+    };
+    session: {
+        prompt: ClientMethod<PluginInput["client"]["session"]["prompt"]>;
+        abort: ClientMethod<PluginInput["client"]["session"]["abort"]>;
+        messages: ClientMethod<PluginInput["client"]["session"]["messages"]>;
+    };
+}
 export interface PluginContext {
     client: PluginClient;
     directory: string;
+    /** V2 owns session recovery and plugin/config updates itself. */
+    runtimeVersion?: 1 | 2;
+    /** Scoped outbound transport supplied by the V2 host wrapper. */
+    fetch?: LoaderResult["fetch"];
+    /** V2's discovered per-account model eligibility; absent on legacy hosts. */
+    canUseAccount?: (account: {
+        id?: string;
+        refreshToken: string;
+    }, model: string) => boolean;
 }
 export type AuthPrompt = {
     type: "text";
@@ -77,6 +103,8 @@ export interface PluginEventPayload {
     };
 }
 export interface PluginResult {
+    dispose?: () => Promise<void>;
+    flush?: () => Promise<void>;
     auth: {
         provider: string;
         loader: (getAuth: GetAuth, provider: Provider) => Promise<LoaderResult | Record<string, unknown>>;
@@ -94,4 +122,5 @@ export interface ProjectContextResult {
     auth: OAuthAuthDetails;
     effectiveProjectId: string;
 }
+export {};
 //# sourceMappingURL=types.d.ts.map

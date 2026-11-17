@@ -1,4 +1,4 @@
-import { processImageData } from '../../image-saver';
+import { processImageData } from '../../image-saver.js';
 /**
  * Simple string hash for thinking deduplication.
  * Uses DJB2-like algorithm.

@@ -1,4 +1,4 @@
-import type { AuthDetails, OAuthAuthDetails, RefreshParts } from "./types";
+import type { AuthDetails, OAuthAuthDetails, RefreshParts } from "./types.js";
 export declare function isOAuthAuth(auth: AuthDetails): auth is OAuthAuthDetails;
 /**
  * Splits a packed refresh string into its constituent refresh token and project IDs.

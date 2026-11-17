@@ -1,4 +1,4 @@
-import { debugLogToFile } from "../../plugin/debug";
+import { debugLogToFile } from "../../plugin/debug.js";
 const AUTO_UPDATE_LOG_PREFIX = "[auto-update-checker]";
 export function formatAutoUpdateLogMessage(message) {
     return `${AUTO_UPDATE_LOG_PREFIX} ${message}`;

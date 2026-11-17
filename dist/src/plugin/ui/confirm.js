@@ -1,4 +1,4 @@
-import { select } from './select';
+import { select } from './select.js';
 export async function confirm(message, defaultYes = false) {
     const items = defaultYes
         ? [

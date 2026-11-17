@@ -59,6 +59,27 @@ export const MODEL_ALIASES: Record<string, string> = {
   // Reference: Antigravity-Manager/src-tauri/src/proxy/common/model_mapping.rs
 };
 
+/**
+ * Model IDs that Antigravity fetchAvailableModels advertises verbatim with a
+ * tier-like suffix. The suffix is part of the real model ID, so it must reach the
+ * API unchanged instead of being stripped as a legacy thinking-tier alias.
+ */
+const advertisedModelIds = new Set([
+  "claude-opus-5-5-high",
+  "claude-sonnet-5-5-high",
+  "gemini-4-argon-high",
+  "gemini-3.8-flash-high",
+  "gemini-3.8-flash-medium",
+  "gemini-3.8-flash-low",
+  "gpt-oss-120b-medium",
+]);
+export const ADVERTISED_TIER_SUFFIX_MODEL_IDS: ReadonlySet<string> = advertisedModelIds;
+
+/** Preserve backend IDs discovered from Google's account-specific catalog. */
+export function registerAdvertisedModelIds(ids: Iterable<string>): void {
+  for (const id of ids) advertisedModelIds.add(id.toLowerCase());
+}
+
 const TIER_REGEX = /-(minimal|low|medium|high)$/;
 const QUOTA_PREFIX_REGEX = /^antigravity-/i;
 const GEMINI_3_PRO_REGEX = /^gemini-3(?:\.\d+)?-pro/i;
@@ -155,6 +176,14 @@ function isGemini3FlashModel(model: string): boolean {
 }
 
 /**
+ * True for advertised model IDs whose tier-like suffix must not be stripped.
+ * Accepts names with or without the "antigravity-" quota prefix.
+ */
+export function isAdvertisedTierSuffixModel(model: string): boolean {
+  return ADVERTISED_TIER_SUFFIX_MODEL_IDS.has(model.replace(QUOTA_PREFIX_REGEX, "").toLowerCase());
+}
+
+/**
  * Resolves a model name with optional tier suffix and quota prefix to its actual API model name
  * and corresponding thinking configuration.
  *
@@ -178,8 +207,11 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
   const isAntigravity = QUOTA_PREFIX_REGEX.test(requestedModel);
   const modelWithoutQuota = requestedModel.replace(QUOTA_PREFIX_REGEX, "");
 
+  const isAdvertisedTierId = isAdvertisedTierSuffixModel(modelWithoutQuota);
+
   const tier = extractThinkingTierFromModel(modelWithoutQuota);
-  const baseName = tier ? modelWithoutQuota.replace(TIER_REGEX, "") : modelWithoutQuota;
+  // Advertised IDs keep their suffix; it still selects the thinking level below.
+  const baseName = tier && !isAdvertisedTierId ? modelWithoutQuota.replace(TIER_REGEX, "") : modelWithoutQuota;
 
   const isImageModel = IMAGE_GENERATION_MODELS.test(modelWithoutQuota);
   const isClaudeModel = modelWithoutQuota.toLowerCase().includes("claude");
@@ -236,7 +268,7 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
   const isGemini3Flash = isGemini3FlashModel(modelWithoutQuota);
   
   let antigravityModel = modelWithoutQuota;
-  if (skipAlias) {
+  if (skipAlias && !isAdvertisedTierId) {
     if (isGemini3Pro && !tier && !isImageModel) {
       antigravityModel = `${modelWithoutQuota}-low`;
     } else if (isGemini3Flash && tier) {
@@ -244,7 +276,7 @@ export function resolveModelWithTier(requestedModel: string, options: ModelResol
     }
   }
 
-  const actualModel = skipAlias
+  const actualModel = skipAlias || isAdvertisedTierId
     ? antigravityModel
     : MODEL_ALIASES[modelWithoutQuota] || MODEL_ALIASES[baseName] || baseName;
 
@@ -438,16 +470,12 @@ export function resolveModelWithVariant(
   if (isGemini3) {
     const level = budgetToGemini3Level(budget);
     const isAntigravityGemini3Pro = base.quotaPreference === "antigravity" &&
-      isGemini3ProModel(base.actualModel);
+      isGemini3ProModel(base.actualModel) &&
+      !isAdvertisedTierSuffixModel(base.actualModel);
 
     let actualModel = base.actualModel;
     if (isAntigravityGemini3Pro) {
       const baseModel = base.actualModel.replace(/-(low|medium|high)$/, "");
-      actualModel = `${baseModel}-${level}`;
-    }
-    // Gemini 3.8 Flash: keep level suffix in model name in sync with variant
-    if (/^gemini-3\.8-flash-/i.test(actualModel)) {
-      const baseModel = actualModel.replace(/-(low|medium|high)$/, "");
       actualModel = `${baseModel}-${level}`;
     }
 

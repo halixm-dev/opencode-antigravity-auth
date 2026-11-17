@@ -1,4 +1,4 @@
-import { accessTokenExpired } from "./auth";
+import { accessTokenExpired } from "./auth.js";
 import { createHash } from "node:crypto";
 const authCache = new Map();
 /**
@@ -57,7 +57,7 @@ export function clearCachedAuth(refresh) {
 // ============================================================================
 // Thinking Signature Cache (for Claude multi-turn conversations)
 // ============================================================================
-import { SignatureCache, createSignatureCache } from "./cache/signature-cache";
+import { SignatureCache, createSignatureCache } from "./cache/signature-cache.js";
 // Map: sessionId -> Map<textHash, SignatureEntry>
 const signatureCache = new Map();
 // Cache entries expire after 1 hour
@@ -68,6 +68,23 @@ const MAX_ENTRIES_PER_SESSION = 100;
 const SIGNATURE_TEXT_HASH_HEX_LEN = 16;
 // Disk cache instance (initialized via initDiskSignatureCache)
 let diskCache = null;
+let diskCacheUsers = 0;
+/** Hold shared cache timers until the last plugin instance is disposed. */
+export function acquireDiskSignatureCache(config) {
+    const cache = diskCache ?? initDiskSignatureCache(config);
+    diskCacheUsers += 1;
+    let released = false;
+    return () => {
+        if (released)
+            return;
+        released = true;
+        diskCacheUsers -= 1;
+        if (diskCacheUsers === 0 && diskCache === cache) {
+            cache?.shutdown();
+            diskCache = null;
+        }
+    };
+}
 /**
  * Initialize the disk-based signature cache.
  * Call this from plugin initialization when keep_thinking is enabled.
@@ -196,5 +213,5 @@ export function clearSignatureCache(sessionId) {
 // Disk-Persistent Signature Cache (re-export from cache/ folder)
 // ============================================================================
 // Re-export SignatureCache class and factory for direct use
-export { SignatureCache, createSignatureCache } from "./cache/signature-cache";
+export { SignatureCache, createSignatureCache } from "./cache/signature-cache.js";
 //# sourceMappingURL=cache.js.map

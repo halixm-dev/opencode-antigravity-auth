@@ -84,4 +84,32 @@ describe("refreshAccessToken", () => {
       code: "invalid_grant",
     });
   });
+
+  it("shares concurrent rotations and retains each caller's project context", async () => {
+    const client = createClient();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const fetchMock = vi.fn(async () => {
+      await gate;
+      return Response.json({ access_token: "shared-access", refresh_token: "shared-rotation", expires_in: 3600 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const first = refreshAccessToken(baseAuth, client, ANTIGRAVITY_PROVIDER_ID);
+    const second = refreshAccessToken({ ...baseAuth, refresh: "refresh-token|other-project|managed" }, client, ANTIGRAVITY_PROVIDER_ID);
+    release();
+    const results = await Promise.all([first, second]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(results[0]?.refresh).toBe("shared-rotation|project-123");
+    expect(results[1]?.refresh).toBe("shared-rotation|other-project|managed");
+  });
+
+  it("returns a completed rotation while its previous token is still being persisted", async () => {
+    const client = createClient();
+    const fetchMock = vi.fn(async () => Response.json({ access_token: "shared-access", refresh_token: "shared-rotation", expires_in: 3600 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await refreshAccessToken(baseAuth, client, ANTIGRAVITY_PROVIDER_ID);
+    const latest = await refreshAccessToken(baseAuth, client, ANTIGRAVITY_PROVIDER_ID);
+    expect(latest?.refresh).toBe("shared-rotation|project-123");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });

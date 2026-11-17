@@ -92,6 +92,24 @@ const SIGNATURE_TEXT_HASH_HEX_LEN = 16;
 // Disk cache instance (initialized via initDiskSignatureCache)
 let diskCache: SignatureCache | null = null;
 
+let diskCacheUsers = 0
+
+/** Hold shared cache timers until the last plugin instance is disposed. */
+export function acquireDiskSignatureCache(config: SignatureCacheConfig | undefined): () => void {
+  const cache = diskCache ?? initDiskSignatureCache(config)
+  diskCacheUsers += 1
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    diskCacheUsers -= 1
+    if (diskCacheUsers === 0 && diskCache === cache) {
+      cache?.shutdown()
+      diskCache = null
+    }
+  }
+}
+
 /**
  * Initialize the disk-based signature cache.
  * Call this from plugin initialization when keep_thinking is enabled.

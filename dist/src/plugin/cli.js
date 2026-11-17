@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { showAuthMenu, showAccountDetails, isTTY, } from "./ui/auth-menu";
-import { updateOpencodeConfig } from "./config/updater";
+import { showAuthMenu, showAccountDetails, isTTY, } from "./ui/auth-menu.js";
+import { updateOpencodeConfig } from "./config/updater.js";
 export async function promptProjectId() {
     const rl = createInterface({ input, output });
     try {
@@ -115,5 +115,5 @@ export async function promptLoginMode(existingAccounts) {
         }
     }
 }
-export { isTTY } from "./ui/auth-menu";
+export { isTTY } from "./ui/auth-menu.js";
 //# sourceMappingURL=cli.js.map

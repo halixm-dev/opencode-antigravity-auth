@@ -7,7 +7,7 @@
  * - System instruction hints for interleaved thinking
  * - Tool normalization (functionDeclarations format)
  */
-import type { RequestPayload, ThinkingConfig } from "./types";
+import type { RequestPayload, ThinkingConfig } from "./types.js";
 /** Claude thinking models need a sufficiently large max output token limit when thinking is enabled */
 export declare const CLAUDE_THINKING_MAX_OUTPUT_TOKENS = 64000;
 /** Interleaved thinking hint appended to system instructions */

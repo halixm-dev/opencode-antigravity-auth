@@ -1,4 +1,4 @@
-import type { AutoUpdateCheckerOptions } from "./types";
+import type { AutoUpdateCheckerOptions } from "./types.js";
 interface PluginClient {
     tui: {
         showToast(options: {
@@ -28,7 +28,7 @@ export declare function createAutoUpdateCheckerHook(client: PluginClient, direct
         event: PluginEvent;
     }) => void;
 };
-export type { UpdateCheckResult, AutoUpdateCheckerOptions } from "./types";
-export { checkForUpdate, getCachedVersion, getLatestVersion } from "./checker";
-export { invalidatePackage, invalidateCache } from "./cache";
+export type { UpdateCheckResult, AutoUpdateCheckerOptions } from "./types.js";
+export { checkForUpdate, getCachedVersion, getLatestVersion } from "./checker.js";
+export { invalidatePackage, invalidateCache } from "./cache.js";
 //# sourceMappingURL=index.d.ts.map

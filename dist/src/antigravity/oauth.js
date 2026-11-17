@@ -1,7 +1,7 @@
 import { generatePKCE } from "@openauthjs/openauth/pkce";
-import { ANTIGRAVITY_CLIENT_ID, ANTIGRAVITY_CLIENT_SECRET, ANTIGRAVITY_REDIRECT_URI, ANTIGRAVITY_SCOPES, ANTIGRAVITY_ENDPOINT_FALLBACKS, ANTIGRAVITY_LOAD_ENDPOINTS, getAntigravityHeaders, GEMINI_CLI_HEADERS, } from "../constants";
-import { createLogger } from "../plugin/logger";
-import { calculateTokenExpiry } from "../plugin/auth";
+import { ANTIGRAVITY_CLIENT_ID, ANTIGRAVITY_CLIENT_SECRET, ANTIGRAVITY_REDIRECT_URI, ANTIGRAVITY_SCOPES, ANTIGRAVITY_ENDPOINT, getAntigravityUserAgent, GEMINI_CLI_HEADERS, } from "../constants.js";
+import { createLogger } from "../plugin/logger.js";
+import { calculateTokenExpiry } from "../plugin/auth.js";
 const log = createLogger("oauth");
 /**
  * Encode an object into a URL-safe base64 string.
@@ -62,29 +62,25 @@ async function fetchProjectID(accessToken) {
     const loadHeaders = {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "User-Agent": GEMINI_CLI_HEADERS["User-Agent"],
-        "Client-Metadata": getAntigravityHeaders()["Client-Metadata"],
+        "User-Agent": getAntigravityUserAgent(),
     };
-    const loadEndpoints = Array.from(new Set([...ANTIGRAVITY_LOAD_ENDPOINTS, ...ANTIGRAVITY_ENDPOINT_FALLBACKS]));
-    for (const baseEndpoint of loadEndpoints) {
-        try {
-            const url = `${baseEndpoint}/v1internal:loadCodeAssist`;
-            const response = await fetchWithTimeout(url, {
-                method: "POST",
-                headers: loadHeaders,
-                body: JSON.stringify({
-                    metadata: {
-                        ideType: "ANTIGRAVITY",
-                        platform: process.platform === "win32" ? "WINDOWS" : "MACOS",
-                        pluginType: "GEMINI",
-                    },
-                }),
-            });
-            if (!response.ok) {
-                const message = await response.text().catch(() => "");
-                errors.push(`loadCodeAssist ${response.status} at ${baseEndpoint}${message ? `: ${message}` : ""}`);
-                continue;
-            }
+    try {
+        const url = `${ANTIGRAVITY_ENDPOINT}/v1internal:loadCodeAssist`;
+        const response = await fetchWithTimeout(url, {
+            method: "POST",
+            headers: loadHeaders,
+            // The Antigravity Hub sends only ideType; MACOS/WINDOWS are not valid platform values.
+            body: JSON.stringify({
+                metadata: {
+                    ideType: "ANTIGRAVITY",
+                },
+            }),
+        });
+        if (!response.ok) {
+            const message = await response.text().catch(() => "");
+            errors.push(`loadCodeAssist ${response.status} at ${ANTIGRAVITY_ENDPOINT}${message ? `: ${message}` : ""}`);
+        }
+        else {
             const data = await response.json();
             if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
                 return data.cloudaicompanionProject;
@@ -94,11 +90,11 @@ async function fetchProjectID(accessToken) {
                 data.cloudaicompanionProject.id) {
                 return data.cloudaicompanionProject.id;
             }
-            errors.push(`loadCodeAssist missing project id at ${baseEndpoint}`);
+            errors.push(`loadCodeAssist missing project id at ${ANTIGRAVITY_ENDPOINT}`);
         }
-        catch (e) {
-            errors.push(`loadCodeAssist error at ${baseEndpoint}: ${e instanceof Error ? e.message : String(e)}`);
-        }
+    }
+    catch (e) {
+        errors.push(`loadCodeAssist error at ${ANTIGRAVITY_ENDPOINT}: ${e instanceof Error ? e.message : String(e)}`);
     }
     if (errors.length) {
         log.warn("Failed to resolve Antigravity project via loadCodeAssist", { errors: errors.join("; ") });

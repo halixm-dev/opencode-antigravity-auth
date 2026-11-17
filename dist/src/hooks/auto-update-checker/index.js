@@ -1,7 +1,7 @@
-import { getCachedVersion, getLocalDevVersion, findPluginEntry, getLatestVersion, updatePinnedVersion } from "./checker";
-import { invalidatePackage } from "./cache";
-import { PACKAGE_NAME } from "./constants";
-import { logAutoUpdate } from "./logging";
+import { getCachedVersion, getLocalDevVersion, findPluginEntry, getLatestVersion, updatePinnedVersion } from "./checker.js";
+import { invalidatePackage } from "./cache.js";
+import { PACKAGE_NAME } from "./constants.js";
+import { logAutoUpdate } from "./logging.js";
 export function createAutoUpdateCheckerHook(client, directory, options = {}) {
     const { showStartupToast = true, autoUpdate = true } = options;
     let hasChecked = false;
@@ -117,6 +117,6 @@ async function showLocalDevToast(client, version) {
         .catch(() => { });
     logAutoUpdate(`Local dev toast shown: v${version}`);
 }
-export { checkForUpdate, getCachedVersion, getLatestVersion } from "./checker";
-export { invalidatePackage, invalidateCache } from "./cache";
+export { checkForUpdate, getCachedVersion, getLatestVersion } from "./checker.js";
+export { invalidatePackage, invalidateCache } from "./cache.js";
 //# sourceMappingURL=index.js.map

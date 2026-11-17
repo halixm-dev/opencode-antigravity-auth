@@ -1,8 +1,10 @@
 import {
-  getAntigravityHeaders,
-  ANTIGRAVITY_ENDPOINT_FALLBACKS,
-  ANTIGRAVITY_LOAD_ENDPOINTS,
   ANTIGRAVITY_DEFAULT_PROJECT_ID,
+  ANTIGRAVITY_ENDPOINT,
+  ANTIGRAVITY_GOOG_API_CLIENT,
+  getAntigravityOnboardUserAgent,
+  getAntigravityUserAgent,
+  getAntigravityVersion,
 } from "../constants";
 import { formatRefreshParts, parseRefreshParts } from "./auth";
 import { createLogger } from "./logger";
@@ -13,11 +15,17 @@ const log = createLogger("project");
 const projectContextResultCache = new Map<string, ProjectContextResult>();
 const projectContextPendingCache = new Map<string, Promise<ProjectContextResult>>();
 
-const CODE_ASSIST_METADATA = {
-  ideType: "ANTIGRAVITY",
-  platform: process.platform === "win32" ? "WINDOWS" : "MACOS",
-  pluginType: "GEMINI",
-} as const;
+const LOAD_TIMEOUT_MS = 10000;
+const ONBOARD_TIMEOUT_MS = 30000;
+
+/** Tier used for onboarding when loadCodeAssist does not advertise one. */
+const DEFAULT_TIER_ID = "free-tier";
+
+/**
+ * loadCodeAssist metadata sent by the Antigravity Hub. Platform and plugin type are
+ * omitted: MACOS/WINDOWS are not valid Cloud Code platform values.
+ */
+const LOAD_CODE_ASSIST_METADATA = { ideType: "ANTIGRAVITY" } as const;
 
 interface AntigravityUserTier {
   id?: string;
@@ -36,37 +44,33 @@ interface LoadCodeAssistPayload {
 interface OnboardUserPayload {
   done?: boolean;
   response?: {
-    cloudaicompanionProject?: {
-      id?: string;
-    };
+    cloudaicompanionProject?: string | { id?: string };
   };
-}
-
-function buildMetadata(projectId?: string): Record<string, string> {
-  const metadata: Record<string, string> = {
-    ideType: CODE_ASSIST_METADATA.ideType,
-    platform: CODE_ASSIST_METADATA.platform,
-    pluginType: CODE_ASSIST_METADATA.pluginType,
-  };
-  if (projectId) {
-    metadata.duetProject = projectId;
-  }
-  return metadata;
 }
 
 /**
- * Selects the default tier ID from the allowed tiers list.
+ * onboardUser metadata uses the snake_case control-plane fields and the Hub version.
  */
-function getDefaultTierId(allowedTiers?: AntigravityUserTier[]): string | undefined {
-  if (!allowedTiers || allowedTiers.length === 0) {
-    return undefined;
-  }
+function buildOnboardMetadata(): Record<string, string> {
+  return {
+    ide_type: "ANTIGRAVITY",
+    ide_version: getAntigravityVersion(),
+    ide_name: "antigravity",
+  };
+}
+
+/**
+ * Selects the tier to onboard with: the default allowed tier, then the first allowed
+ * tier, then the current tier, then free-tier.
+ */
+function getDefaultTierId(payload: LoadCodeAssistPayload | null): string {
+  const allowedTiers = payload?.allowedTiers ?? [];
   for (const tier of allowedTiers) {
-    if (tier?.isDefault) {
+    if (tier?.isDefault && tier.id) {
       return tier.id;
     }
   }
-  return allowedTiers[0]?.id;
+  return allowedTiers[0]?.id || payload?.currentTier?.id || DEFAULT_TIER_ID;
 }
 
 /**
@@ -78,20 +82,30 @@ function wait(ms: number): Promise<void> {
   });
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Extracts a cloudaicompanion project id from its string or `{ id }` form.
+ */
+function extractProjectId(value: string | { id?: string } | undefined): string | undefined {
+  const id = typeof value === "string" ? value : value?.id;
+  const trimmed = typeof id === "string" ? id.trim() : "";
+  return trimmed || undefined;
+}
+
 /**
  * Extracts the cloudaicompanion project id from loadCodeAssist responses.
  */
 function extractManagedProjectId(payload: LoadCodeAssistPayload | null): string | undefined {
-  if (!payload) {
-    return undefined;
-  }
-  if (typeof payload.cloudaicompanionProject === "string") {
-    return payload.cloudaicompanionProject;
-  }
-  if (payload.cloudaicompanionProject && typeof payload.cloudaicompanionProject.id === "string") {
-    return payload.cloudaicompanionProject.id;
-  }
-  return undefined;
+  return payload ? extractProjectId(payload.cloudaicompanionProject) : undefined;
 }
 
 /**
@@ -116,55 +130,39 @@ export function invalidateProjectContextCache(refresh?: string): void {
 }
 
 /**
- * Loads managed project information for the given access token and optional project.
+ * Loads managed project information for the given access token from the Antigravity host.
  */
-export async function loadManagedProject(
-  accessToken: string,
-  projectId?: string,
-): Promise<LoadCodeAssistPayload | null> {
-  const metadata = buildMetadata(projectId);
-  const requestBody: Record<string, unknown> = { metadata };
-
-  const loadHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
-    "User-Agent": "google-api-nodejs-client/9.15.1",
-    "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
-    "Client-Metadata": getAntigravityHeaders()["Client-Metadata"],
-  };
-
-  const loadEndpoints = Array.from(
-    new Set<string>([...ANTIGRAVITY_LOAD_ENDPOINTS, ...ANTIGRAVITY_ENDPOINT_FALLBACKS]),
-  );
-
-  for (const baseEndpoint of loadEndpoints) {
-    try {
-      const response = await fetch(
-        `${baseEndpoint}/v1internal:loadCodeAssist`,
-        {
-          method: "POST",
-          headers: loadHeaders,
-          body: JSON.stringify(requestBody),
+export async function loadManagedProject(accessToken: string): Promise<LoadCodeAssistPayload | null> {
+  try {
+    const response = await fetchWithTimeout(
+      `${ANTIGRAVITY_ENDPOINT}/v1internal:loadCodeAssist`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent": getAntigravityUserAgent(),
         },
-      );
+        body: JSON.stringify({ metadata: LOAD_CODE_ASSIST_METADATA }),
+      },
+      LOAD_TIMEOUT_MS,
+    );
 
-      if (!response.ok) {
-        continue;
-      }
-
-      return (await response.json()) as LoadCodeAssistPayload;
-    } catch (error) {
-      log.debug("Failed to load managed project", { endpoint: baseEndpoint, error: String(error) });
-      continue;
+    if (!response.ok) {
+      log.debug("loadCodeAssist failed", { endpoint: ANTIGRAVITY_ENDPOINT, status: response.status });
+      return null;
     }
-  }
 
-  return null;
+    return (await response.json()) as LoadCodeAssistPayload;
+  } catch (error) {
+    log.debug("Failed to load managed project", { endpoint: ANTIGRAVITY_ENDPOINT, error: String(error) });
+    return null;
+  }
 }
 
 
 /**
- * Onboards a managed project for the user, optionally retrying until completion.
+ * Onboards a managed project for the user, polling until the operation completes.
  */
 export async function onboardManagedProject(
   accessToken: string,
@@ -173,45 +171,44 @@ export async function onboardManagedProject(
   attempts = 10,
   delayMs = 5000,
 ): Promise<string | undefined> {
-  const metadata = buildMetadata(projectId);
-  const requestBody: Record<string, unknown> = {
-    tierId,
-    metadata,
+  const requestBody = {
+    tier_id: tierId,
+    metadata: buildOnboardMetadata(),
   };
 
-  for (const baseEndpoint of ANTIGRAVITY_ENDPOINT_FALLBACKS) {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      try {
-        const response = await fetch(
-          `${baseEndpoint}/v1internal:onboardUser`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-              ...getAntigravityHeaders(),
-            },
-            body: JSON.stringify(requestBody),
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(
+        `${ANTIGRAVITY_ENDPOINT}/v1internal:onboardUser`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "User-Agent": getAntigravityOnboardUserAgent(),
+            "X-Goog-Api-Client": ANTIGRAVITY_GOOG_API_CLIENT,
           },
-        );
+          body: JSON.stringify(requestBody),
+        },
+        ONBOARD_TIMEOUT_MS,
+      );
 
-        if (!response.ok) {
-          break;
-        }
-
-        const payload = (await response.json()) as OnboardUserPayload;
-        const managedProjectId = payload.response?.cloudaicompanionProject?.id;
-        if (payload.done && managedProjectId) {
-          return managedProjectId;
-        }
-        if (payload.done && projectId) {
-          return projectId;
-        }
-      } catch (error) {
-        log.debug("Failed to onboard managed project", { endpoint: baseEndpoint, error: String(error) });
-        break;
+      if (!response.ok) {
+        log.debug("onboardUser failed", { endpoint: ANTIGRAVITY_ENDPOINT, status: response.status });
+        return undefined;
       }
 
+      const payload = (await response.json()) as OnboardUserPayload;
+      if (payload.done) {
+        return extractProjectId(payload.response?.cloudaicompanionProject) ?? projectId;
+      }
+    } catch (error) {
+      log.debug("Failed to onboard managed project", { endpoint: ANTIGRAVITY_ENDPOINT, error: String(error) });
+      return undefined;
+    }
+
+    if (attempt < attempts - 1) {
       await wait(delayMs);
     }
   }
@@ -261,7 +258,7 @@ export async function ensureProjectContext(auth: OAuthAuthDetails): Promise<Proj
     };
 
     // Try to resolve a managed project from Antigravity if possible.
-    const loadPayload = await loadManagedProject(accessToken, parts.projectId ?? fallbackProjectId);
+    const loadPayload = await loadManagedProject(accessToken);
     const resolvedManagedProjectId = extractManagedProjectId(loadPayload);
 
     if (resolvedManagedProjectId) {
@@ -270,7 +267,7 @@ export async function ensureProjectContext(auth: OAuthAuthDetails): Promise<Proj
 
     // No managed project found - try to auto-provision one via onboarding.
     // This handles accounts that were added before managed project provisioning was required.
-    const tierId = getDefaultTierId(loadPayload?.allowedTiers) ?? "FREE";
+    const tierId = getDefaultTierId(loadPayload);
     log.debug("Auto-provisioning managed project", { tierId, projectId: parts.projectId });
     
     const provisionedProjectId = await onboardManagedProject(

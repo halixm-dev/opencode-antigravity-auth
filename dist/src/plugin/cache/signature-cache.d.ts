@@ -9,7 +9,7 @@
  *
  * Cache key format: `${sessionId}:${modelId}`
  */
-import type { SignatureCacheConfig } from "../config";
+import type { SignatureCacheConfig } from "../config/index.js";
 interface CacheStats {
     memoryHits: number;
     diskHits: number;

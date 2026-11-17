@@ -15,8 +15,8 @@
  * - Integrates with existing AccountManager and token refresh logic
  * - Silent operation: no console output, uses structured logger
  */
-import type { AccountManager, ManagedAccount } from "./accounts";
-import type { PluginClient } from "./types";
+import type { AccountManager, ManagedAccount } from "./accounts.js";
+import type { PluginClient } from "./types.js";
 /** Configuration for the proactive refresh queue */
 export interface ProactiveRefreshConfig {
     /** Enable proactive token refresh (default: true) */
@@ -40,6 +40,8 @@ export declare class ProactiveRefreshQueue {
     private readonly client;
     private readonly providerId;
     private accountManager;
+    private activeCheck;
+    private initialTimeout;
     private state;
     constructor(client: PluginClient, providerId: string, config?: Partial<ProactiveRefreshConfig>);
     /**
@@ -65,6 +67,7 @@ export declare class ProactiveRefreshQueue {
      * This is called periodically by the background interval.
      */
     private runRefreshCheck;
+    private refreshAccounts;
     /**
      * Refresh a single token.
      */
@@ -76,7 +79,7 @@ export declare class ProactiveRefreshQueue {
     /**
      * Stop the background refresh queue.
      */
-    stop(): void;
+    stop(): Promise<void>;
     /**
      * Get current queue statistics.
      */

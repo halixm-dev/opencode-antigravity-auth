@@ -1,8 +1,8 @@
-import { type HeaderStyle } from "../constants";
-import { createStreamingTransformer, transformSseLine, transformStreamingPayload } from "./core/streaming";
-import { type AntigravityDebugContext } from "./debug";
-import { type Fingerprint } from "./fingerprint";
-import type { GoogleSearchConfig } from "./transform/types";
+import { type HeaderStyle } from "../constants.js";
+import { createStreamingTransformer, transformSseLine, transformStreamingPayload } from "./core/streaming/index.js";
+import { type AntigravityDebugContext } from "./debug.js";
+import type { Fingerprint } from "./fingerprint.js";
+import type { GoogleSearchConfig } from "./transform/types.js";
 declare function buildSignatureSessionKey(sessionId: string, model?: string, conversationKey?: string, projectKey?: string): string;
 declare function hashConversationSeed(seed: string): string;
 declare function extractTextFromContent(content: unknown): string;
@@ -39,7 +39,10 @@ export interface PrepareRequestOptions {
     claudePromptAutoCaching?: boolean;
     /** Google Search configuration (global default) */
     googleSearch?: GoogleSearchConfig;
-    /** Per-account fingerprint for rate limit mitigation. Falls back to session fingerprint if not provided. */
+    /**
+     * Per-account fingerprint. Kept for API compatibility: Antigravity requests always send
+     * the current Hub User-Agent, never a stored fingerprint userAgent.
+     */
     fingerprint?: Fingerprint;
 }
 export declare function prepareAntigravityRequest(input: RequestInfo, init: RequestInit | undefined, accessToken: string, projectId: string, endpointOverride?: string, headerStyle?: HeaderStyle, forceThinkingRecovery?: boolean, options?: PrepareRequestOptions): {

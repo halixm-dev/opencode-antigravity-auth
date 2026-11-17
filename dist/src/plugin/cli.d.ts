@@ -1,4 +1,4 @@
-import { type AccountStatus } from "./ui/auth-menu";
+import { type AccountStatus } from "./ui/auth-menu.js";
 export declare function promptProjectId(): Promise<string>;
 export declare function promptAddAnotherAccount(currentCount: number): Promise<boolean>;
 export type LoginMode = "add" | "fresh" | "manage" | "check" | "verify" | "verify-all" | "cancel";
@@ -21,6 +21,6 @@ export interface LoginMenuResult {
     deleteAll?: boolean;
 }
 export declare function promptLoginMode(existingAccounts: ExistingAccountInfo[]): Promise<LoginMenuResult>;
-export { isTTY } from "./ui/auth-menu";
-export type { AccountStatus } from "./ui/auth-menu";
+export { isTTY } from "./ui/auth-menu.js";
+export type { AccountStatus } from "./ui/auth-menu.js";
 //# sourceMappingURL=cli.d.ts.map

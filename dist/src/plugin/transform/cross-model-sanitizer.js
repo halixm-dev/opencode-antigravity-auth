@@ -6,8 +6,8 @@
  * Root cause: Gemini stores thoughtSignature in metadata.google, Claude stores signature
  * in top-level thinking blocks. Foreign signatures fail validation on the target model.
  */
-import { isClaudeModel } from "./claude";
-import { isGeminiModel } from "./gemini";
+import { isClaudeModel } from "./claude.js";
+import { isGeminiModel } from "./gemini.js";
 const GEMINI_SIGNATURE_FIELDS = ["thoughtSignature", "thinkingMetadata"];
 const CLAUDE_SIGNATURE_FIELDS = ["signature"];
 export function getModelFamily(model) {

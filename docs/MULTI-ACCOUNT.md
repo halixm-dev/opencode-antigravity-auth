@@ -1,5 +1,19 @@
 # Multi-Account Setup
 
+For **OpenCode V2**, open `/antigravity` (or `/ag`) to see accounts, check quotas,
+add accounts, select one, enable/disable, re-authenticate, or delete an account.
+Each row shows the lowest cached quota across Claude, Gemini Pro, and Gemini
+Flash, with its reset time when below 100%. Opening the list makes no quota
+requests; use **Check quotas / verify enabled accounts** to refresh the cache.
+Select an enabled account's row to switch to it immediately. Use **Manage account…**
+for the per-account actions; selecting a disabled account also opens those actions.
+Disabled accounts are skipped during routine quota checks. Quota details open
+per account, and **Refresh available models** reloads Google's selectable model
+list. The `antigravity-*` models use the Antigravity quota pool; ordinary Google
+models keep OpenCode's native transport. See [the V2 guide](OPENCODE-V2.md).
+
+The remaining sections describe the legacy V1 authentication menu and routing.
+
 Add multiple Google accounts to increase your combined quota and improve availability. The plugin automatically rotates between accounts when one is rate-limited.
 
 ```bash
@@ -27,7 +41,8 @@ For Gemini models, the plugin accesses **two independent quota pools** per accou
 | **Antigravity** | Default for all requests |
 | **Gemini CLI** | Automatic fallback between Antigravity and Gemini CLI in both directions |
 
-This effectively **doubles your Gemini quota** through automatic fallback between Antigravity and Gemini CLI pools.
+The pools have separate limits and eligibility; a second pool does not guarantee
+twice the available quota.
 
 ### How Quota Fallback Works
 

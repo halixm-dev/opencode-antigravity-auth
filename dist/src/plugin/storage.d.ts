@@ -1,4 +1,4 @@
-import type { HeaderStyle } from "../constants";
+import type { HeaderStyle } from "../constants.js";
 /**
  * Files/directories that should be gitignored in the config directory.
  * These contain sensitive data or machine-specific state.
@@ -59,6 +59,10 @@ export interface AccountStorage {
 }
 export type CooldownReason = "auth-failure" | "network-error" | "project-error" | "validation-required";
 export interface AccountMetadataV3 {
+    /** Stable menu identity, preserved when OAuth refresh tokens rotate. */
+    id?: string;
+    /** Hashes identify native connections that still hold an older OAuth token. */
+    refreshTokenHashes?: string[];
     email?: string;
     refreshToken: string;
     projectId?: string;
@@ -71,8 +75,8 @@ export interface AccountMetadataV3 {
     coolingDownUntil?: number;
     cooldownReason?: CooldownReason;
     /** Per-account device fingerprint for rate limit mitigation */
-    fingerprint?: import("./fingerprint").Fingerprint;
-    fingerprintHistory?: import("./fingerprint").FingerprintVersion[];
+    fingerprint?: import("./fingerprint.js").Fingerprint;
+    fingerprintHistory?: import("./fingerprint.js").FingerprintVersion[];
     /** Set when Google asks the user to verify this account before requests can continue. */
     verificationRequired?: boolean;
     verificationRequiredAt?: number;
@@ -82,10 +86,20 @@ export interface AccountMetadataV3 {
     cachedQuota?: Record<string, {
         remainingFraction?: number;
         resetTime?: string;
+        remainingFractionResetTime?: string;
         modelCount: number;
     }>;
     cachedQuotaUpdatedAt?: number;
 }
+export declare const accountTokenHash: (token: string) => string;
+export declare function matchesAccountToken(account: AccountMetadataV3, token: string): boolean;
+/** Update credentials without losing the identity of older native connections. */
+export declare function updateAccountCredentials(account: AccountMetadataV3, parts: {
+    refreshToken?: string;
+    projectId?: string;
+    managedProjectId?: string;
+}): void;
+export declare function saveAccountCredentials(original: AccountMetadataV3, updated: AccountMetadataV3): Promise<AccountStorageV4 | null>;
 export interface AccountStorageV3 {
     version: 3;
     accounts: AccountMetadataV3[];
@@ -126,6 +140,8 @@ export declare function migrateV2ToV3(v2: AccountStorage): AccountStorageV3;
 export declare function migrateV3ToV4(v3: AccountStorageV3): AccountStorageV4;
 export declare function loadAccounts(): Promise<AccountStorageV4 | null>;
 export declare function saveAccounts(storage: AccountStorageV4): Promise<void>;
+/** Apply a targeted change to the latest pool while holding its file lock. */
+export declare function updateAccounts(update: (storage: AccountStorageV4) => void): Promise<AccountStorageV4 | null>;
 /**
  * Save accounts storage by replacing the entire file (no merge).
  * Use this for destructive operations like delete where we need to

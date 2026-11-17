@@ -7,8 +7,8 @@
  * - either sink can be enabled independently
  * - OPENCODE_ANTIGRAVITY_CONSOLE_LOG=1 → console output (independent of debug flags)
  */
-import { isDebugTuiEnabled } from "./debug";
-import { isTruthyFlag, writeConsoleLog, } from "./logging-utils";
+import { isDebugTuiEnabled } from "./debug.js";
+import { isTruthyFlag, writeConsoleLog, } from "./logging-utils.js";
 const ENV_CONSOLE_LOG = "OPENCODE_ANTIGRAVITY_CONSOLE_LOG";
 let _client = null;
 /**

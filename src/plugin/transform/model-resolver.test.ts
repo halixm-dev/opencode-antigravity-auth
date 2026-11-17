@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resolveModelWithTier, resolveModelWithVariant, resolveModelForHeaderStyle } from "./model-resolver";
+import {
+  ADVERTISED_TIER_SUFFIX_MODEL_IDS,
+  isAdvertisedTierSuffixModel,
+  resolveModelWithTier,
+  resolveModelWithVariant,
+  resolveModelForHeaderStyle,
+} from "./model-resolver";
 
 describe("resolveModelWithTier", () => {
   describe("Gemini 3 flash models (Issue #109)", () => {
@@ -376,5 +382,53 @@ describe("Issue #103: resolveModelForHeaderStyle", () => {
       const result = resolveModelForHeaderStyle("claude-opus-4-6-thinking", "antigravity");
       expect(result.actualModel).toBe("claude-opus-4-6-thinking");
     });
+  });
+});
+
+describe("advertised tier-suffix model IDs", () => {
+  const advertised = [
+    "claude-opus-5-5-high",
+    "claude-sonnet-5-5-high",
+    "gemini-4-argon-high",
+    "gemini-3.8-flash-high",
+    "gpt-oss-120b-medium",
+  ];
+
+  it("includes the known advertised IDs and current Flash tiers", () => {
+    expect([...ADVERTISED_TIER_SUFFIX_MODEL_IDS]).toEqual(expect.arrayContaining([...advertised, "gemini-3.8-flash-low", "gemini-3.8-flash-medium"]));
+  });
+
+  it.each(advertised)("keeps %s intact for antigravity routing", (modelId) => {
+    expect(resolveModelForHeaderStyle(modelId, "antigravity").actualModel).toBe(modelId);
+    expect(resolveModelForHeaderStyle(`antigravity-${modelId}`, "antigravity").actualModel).toBe(modelId);
+    expect(resolveModelWithTier(modelId).actualModel).toBe(modelId);
+    expect(resolveModelWithTier(`antigravity-${modelId}`).actualModel).toBe(modelId);
+  });
+
+  it("matches with or without the quota prefix, case-insensitively", () => {
+    expect(isAdvertisedTierSuffixModel("gemini-3.8-flash-high")).toBe(true);
+    expect(isAdvertisedTierSuffixModel("antigravity-GEMINI-3.8-FLASH-HIGH")).toBe(true);
+    expect(isAdvertisedTierSuffixModel("gemini-3.8-flash")).toBe(false);
+    expect(isAdvertisedTierSuffixModel("gemini-3-flash-high")).toBe(false);
+  });
+
+  it("still derives the Gemini 3 thinking level from an advertised suffix", () => {
+    const result = resolveModelForHeaderStyle("gemini-3.8-flash-high", "antigravity");
+    expect(result.actualModel).toBe("gemini-3.8-flash-high");
+    expect(result.thinkingLevel).toBe("high");
+    expect(result.quotaPreference).toBe("antigravity");
+  });
+
+  it("does not rewrite an advertised ID when a variant thinking budget is applied", () => {
+    const result = resolveModelWithVariant("antigravity-gemini-3.8-flash-high", { thinkingBudget: 4096 });
+    expect(result.actualModel).toBe("gemini-3.8-flash-high");
+    expect(result.thinkingLevel).toBe("low");
+  });
+
+  it("keeps legacy tier stripping for non-advertised aliases", () => {
+    expect(resolveModelForHeaderStyle("gemini-3-flash-high", "antigravity").actualModel).toBe("gemini-3-flash");
+    expect(resolveModelWithTier("claude-opus-4-6-thinking-high").actualModel).toBe("claude-opus-4-6-thinking");
+    expect(resolveModelWithTier("gemini-3-pro-high").actualModel).toBe("gemini-3-pro");
+    expect(resolveModelForHeaderStyle("gemini-3-pro-high", "antigravity").actualModel).toBe("gemini-3-pro-high");
   });
 });

@@ -7,7 +7,7 @@
  * 2. User config file
  * 3. Project config file
  */
-import { type AntigravityConfig } from "./schema";
+import { type AntigravityConfig } from "./schema.js";
 /**
  * Get the user-level config file path.
  */

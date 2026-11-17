@@ -15,27 +15,17 @@ export declare const ANTIGRAVITY_SCOPES: readonly string[];
  */
 export declare const ANTIGRAVITY_REDIRECT_URI = "http://localhost:51121/oauth-callback";
 /**
- * Root endpoints for the Antigravity API (in fallback order).
- * CLIProxy and Vibeproxy use the daily sandbox endpoint first,
- * then fallback to autopush and prod if needed.
+ * Antigravity Cloud Code host. Consumer Antigravity Hub clients send generate,
+ * stream, loadCodeAssist, onboardUser, and fetchAvailableModels requests to the
+ * non-sandbox daily host only; mixing hosts can grant incompatible entitlements.
  */
-export declare const ANTIGRAVITY_ENDPOINT_DAILY = "https://daily-cloudcode-pa.sandbox.googleapis.com";
-export declare const ANTIGRAVITY_ENDPOINT_AUTOPUSH = "https://autopush-cloudcode-pa.sandbox.googleapis.com";
+export declare const ANTIGRAVITY_ENDPOINT_DAILY = "https://daily-cloudcode-pa.googleapis.com";
+/** Production Cloud Code host, used by the Gemini CLI quota path. */
 export declare const ANTIGRAVITY_ENDPOINT_PROD = "https://cloudcode-pa.googleapis.com";
 /**
- * Endpoint fallback order (daily → autopush → prod).
- * Shared across request handling and project discovery to mirror CLIProxy behavior.
+ * Primary endpoint for Antigravity-style requests.
  */
-export declare const ANTIGRAVITY_ENDPOINT_FALLBACKS: readonly ["https://daily-cloudcode-pa.sandbox.googleapis.com", "https://autopush-cloudcode-pa.sandbox.googleapis.com", "https://cloudcode-pa.googleapis.com"];
-/**
- * Preferred endpoint order for project discovery (prod first, then fallbacks).
- * loadCodeAssist appears to be best supported on prod for managed project resolution.
- */
-export declare const ANTIGRAVITY_LOAD_ENDPOINTS: readonly ["https://cloudcode-pa.googleapis.com", "https://daily-cloudcode-pa.sandbox.googleapis.com", "https://autopush-cloudcode-pa.sandbox.googleapis.com"];
-/**
- * Primary endpoint to use (daily sandbox - same as CLIProxy/Vibeproxy).
- */
-export declare const ANTIGRAVITY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.googleapis.com";
+export declare const ANTIGRAVITY_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com";
 /**
  * Gemini CLI endpoint (production).
  * Used for models without :antigravity suffix.
@@ -43,10 +33,34 @@ export declare const ANTIGRAVITY_ENDPOINT = "https://daily-cloudcode-pa.sandbox.
  */
 export declare const GEMINI_CLI_ENDPOINT = "https://cloudcode-pa.googleapis.com";
 /**
+ * Endpoints to try, in order, for a header style. Antigravity never falls back
+ * across hosts; Gemini CLI stays on production.
+ */
+export declare function getEndpointFallbacks(style: HeaderStyle): readonly string[];
+/**
  * Hardcoded project id used when Antigravity does not return one (e.g., business/workspace accounts).
  */
 export declare const ANTIGRAVITY_DEFAULT_PROJECT_ID = "rising-fact-p41fc";
-export declare const ANTIGRAVITY_VERSION_FALLBACK = "1.18.3";
+/**
+ * Cloud Code only serves newer models to Antigravity Hub clients at or above this version.
+ */
+export declare const ANTIGRAVITY_MINIMUM_VERSION = "2.23.0";
+/**
+ * Hub release reported when the update manifest is unreachable. Keep it at or above
+ * ANTIGRAVITY_MINIMUM_VERSION and update it together with ANTIGRAVITY_HUB_CHANGELISTS.
+ */
+export declare const ANTIGRAVITY_VERSION_FALLBACK = "2.24.0";
+/**
+ * Build changelists of specific Hub releases. Releases without a known CL omit the
+ * cl= field instead of claiming another build's CL.
+ */
+export declare const ANTIGRAVITY_HUB_CHANGELISTS: Readonly<Record<string, string>>;
+/** Platform of the arm64 macOS update manifest the runtime version is read from. */
+export declare const ANTIGRAVITY_HUB_PLATFORM = "os_type=darwin; arch=arm64";
+/** Suffix the Hub appends to its User-Agent on onboardUser control-plane calls. */
+export declare const ANTIGRAVITY_NODE_API_CLIENT = "google-api-nodejs-client/10.3.0";
+/** X-Goog-Api-Client the Hub sends on onboardUser control-plane calls. */
+export declare const ANTIGRAVITY_GOOG_API_CLIENT = "gl-node/22.21.1";
 export declare function getAntigravityVersion(): string;
 /**
  * Set the runtime Antigravity version. Can only be called once (at startup).
@@ -54,15 +68,25 @@ export declare function getAntigravityVersion(): string;
  */
 export declare function setAntigravityVersion(version: string): void;
 /** @deprecated Use getAntigravityVersion() for runtime access. */
-export declare const ANTIGRAVITY_VERSION = "1.18.3";
-export declare function getAntigravityHeaders(): HeaderSet & {
-    "Client-Metadata": string;
-};
+export declare const ANTIGRAVITY_VERSION = "2.24.0";
+/**
+ * Antigravity Hub User-Agent, e.g.
+ * `antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)`.
+ * Resolved at call time so requests always carry the current runtime version.
+ */
+export declare function getAntigravityUserAgent(version?: string): string;
+/**
+ * Long Hub User-Agent used by onboardUser control-plane requests.
+ */
+export declare function getAntigravityOnboardUserAgent(version?: string): string;
+/**
+ * Headers for Antigravity content, project, and quota requests. The Hub sends only
+ * its User-Agent: no X-Goog-Api-Client and no Client-Metadata.
+ */
+export declare function getAntigravityHeaders(): HeaderSet;
 /** @deprecated Use getAntigravityHeaders() for runtime access. */
 export declare const ANTIGRAVITY_HEADERS: {
-    readonly "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Antigravity/1.18.3 Chrome/138.0.7204.235 Electron/37.3.1 Safari/537.36";
-    readonly "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1";
-    readonly "Client-Metadata": "{\"ideType\":\"ANTIGRAVITY\",\"platform\":\"WINDOWS\",\"pluginType\":\"GEMINI\"}" | "{\"ideType\":\"ANTIGRAVITY\",\"platform\":\"MACOS\",\"pluginType\":\"GEMINI\"}";
+    readonly "User-Agent": string;
 };
 export declare const GEMINI_CLI_HEADERS: {
     readonly "User-Agent": "google-api-nodejs-client/9.15.1";
@@ -74,6 +98,10 @@ export type HeaderSet = {
     "X-Goog-Api-Client"?: string;
     "Client-Metadata"?: string;
 };
+/**
+ * Header set for a request style. Antigravity no longer randomizes platform or
+ * API client values: the Hub User-Agent is tied to the manifest release and CL.
+ */
 export declare function getRandomizedHeaders(style: HeaderStyle, model?: string): HeaderSet;
 export type HeaderStyle = "antigravity" | "gemini-cli";
 /**

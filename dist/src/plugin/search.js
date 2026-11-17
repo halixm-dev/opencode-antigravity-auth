@@ -5,8 +5,8 @@
  * cannot be combined with function declarations. This module implements a
  * wrapper that makes separate API calls with only the grounding tools enabled.
  */
-import { ANTIGRAVITY_ENDPOINT, getAntigravityHeaders, SEARCH_MODEL, SEARCH_TIMEOUT_MS, SEARCH_SYSTEM_INSTRUCTION, } from "../constants";
-import { createLogger } from "./logger";
+import { ANTIGRAVITY_ENDPOINT, getAntigravityHeaders, SEARCH_MODEL, SEARCH_TIMEOUT_MS, SEARCH_SYSTEM_INSTRUCTION, } from "../constants.js";
+import { createLogger } from "./logger.js";
 const log = createLogger("search");
 // ============================================================================
 // Helper Functions

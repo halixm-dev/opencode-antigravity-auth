@@ -7,7 +7,7 @@
  * - either sink can be enabled independently
  * - OPENCODE_ANTIGRAVITY_CONSOLE_LOG=1 → console output (independent of debug flags)
  */
-import type { PluginClient } from "./types";
+import type { PluginClient } from "./types.js";
 export interface Logger {
     debug(message: string, extra?: Record<string, unknown>): void;
     info(message: string, extra?: Record<string, unknown>): void;

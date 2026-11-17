@@ -5,9 +5,8 @@ import {
   ANTIGRAVITY_CLIENT_SECRET,
   ANTIGRAVITY_REDIRECT_URI,
   ANTIGRAVITY_SCOPES,
-  ANTIGRAVITY_ENDPOINT_FALLBACKS,
-  ANTIGRAVITY_LOAD_ENDPOINTS,
-  getAntigravityHeaders,
+  ANTIGRAVITY_ENDPOINT,
+  getAntigravityUserAgent,
   GEMINI_CLI_HEADERS,
 } from "../constants";
 import { createLogger } from "../plugin/logger";
@@ -134,39 +133,30 @@ async function fetchProjectID(accessToken: string): Promise<string> {
   const loadHeaders: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
-    "User-Agent": GEMINI_CLI_HEADERS["User-Agent"],
-    "Client-Metadata": getAntigravityHeaders()["Client-Metadata"],
+    "User-Agent": getAntigravityUserAgent(),
   };
 
-  const loadEndpoints = Array.from(
-    new Set<string>([...ANTIGRAVITY_LOAD_ENDPOINTS, ...ANTIGRAVITY_ENDPOINT_FALLBACKS]),
-  );
+  try {
+    const url = `${ANTIGRAVITY_ENDPOINT}/v1internal:loadCodeAssist`;
+    const response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: loadHeaders,
+      // The Antigravity Hub sends only ideType; MACOS/WINDOWS are not valid platform values.
+      body: JSON.stringify({
+        metadata: {
+          ideType: "ANTIGRAVITY",
+        },
+      }),
+    });
 
-  for (const baseEndpoint of loadEndpoints) {
-    try {
-      const url = `${baseEndpoint}/v1internal:loadCodeAssist`;
-      const response = await fetchWithTimeout(url, {
-        method: "POST",
-        headers: loadHeaders,
-        body: JSON.stringify({
-          metadata: {
-            ideType: "ANTIGRAVITY",
-            platform: process.platform === "win32" ? "WINDOWS" : "MACOS",
-            pluginType: "GEMINI",
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const message = await response.text().catch(() => "");
-        errors.push(
-          `loadCodeAssist ${response.status} at ${baseEndpoint}${
-            message ? `: ${message}` : ""
-          }`,
-        );
-        continue;
-      }
-
+    if (!response.ok) {
+      const message = await response.text().catch(() => "");
+      errors.push(
+        `loadCodeAssist ${response.status} at ${ANTIGRAVITY_ENDPOINT}${
+          message ? `: ${message}` : ""
+        }`,
+      );
+    } else {
       const data = await response.json();
       if (typeof data.cloudaicompanionProject === "string" && data.cloudaicompanionProject) {
         return data.cloudaicompanionProject;
@@ -179,14 +169,14 @@ async function fetchProjectID(accessToken: string): Promise<string> {
         return data.cloudaicompanionProject.id;
       }
 
-      errors.push(`loadCodeAssist missing project id at ${baseEndpoint}`);
-    } catch (e) {
-      errors.push(
-        `loadCodeAssist error at ${baseEndpoint}: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
+      errors.push(`loadCodeAssist missing project id at ${ANTIGRAVITY_ENDPOINT}`);
     }
+  } catch (e) {
+    errors.push(
+      `loadCodeAssist error at ${ANTIGRAVITY_ENDPOINT}: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
   }
 
   if (errors.length) {

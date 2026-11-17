@@ -1,19 +1,18 @@
 import crypto from "node:crypto";
-import { ANTIGRAVITY_ENDPOINT, GEMINI_CLI_ENDPOINT, GEMINI_CLI_HEADERS, EMPTY_SCHEMA_PLACEHOLDER_NAME, EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION, SKIP_THOUGHT_SIGNATURE, getRandomizedHeaders, } from "../constants";
-import { cacheSignature, getCachedSignature } from "./cache";
-import { getKeepThinking } from "./config";
-import { createStreamingTransformer, transformSseLine, transformStreamingPayload, } from "./core/streaming";
-import { defaultSignatureStore } from "./stores/signature-store";
-import { DEBUG_MESSAGE_PREFIX, isDebugEnabled, isDebugTuiEnabled, logAntigravityDebugResponse, logCacheStats, } from "./debug";
-import { createLogger } from "./logger";
-import { cleanJSONSchemaForAntigravity, DEFAULT_THINKING_BUDGET, deepFilterThinkingBlocks, extractThinkingConfig, extractVariantThinkingConfig, extractUsageFromSsePayload, extractUsageMetadata, fixToolResponseGrouping, validateAndFixClaudeToolPairing, applyToolPairingFixes, injectParameterSignatures, injectToolHardeningInstruction, isThinkingCapableModel, normalizeThinkingConfig, parseAntigravityApiBody, resolveThinkingConfig, rewriteAntigravityPreviewAccessError, transformThinkingParts, } from "./request-helpers";
-import { CLAUDE_TOOL_SYSTEM_INSTRUCTION, CLAUDE_DESCRIPTION_PROMPT, ANTIGRAVITY_SYSTEM_INSTRUCTION, } from "../constants";
-import { analyzeConversationState, closeToolLoopForThinking, needsThinkingRecovery, } from "./thinking-recovery";
-import { sanitizeCrossModelPayloadInPlace } from "./transform/cross-model-sanitizer";
-import { isGemini3Model, isImageGenerationModel, buildImageGenerationConfig, applyGeminiTransforms } from "./transform";
-import { resolveModelWithTier, resolveModelWithVariant, resolveModelForHeaderStyle, isClaudeModel, isClaudeThinkingModel, CLAUDE_THINKING_MAX_OUTPUT_TOKENS, } from "./transform";
-import { detectErrorType } from "./recovery";
-import { getSessionFingerprint, buildFingerprintHeaders } from "./fingerprint";
+import { ANTIGRAVITY_ENDPOINT, GEMINI_CLI_ENDPOINT, GEMINI_CLI_HEADERS, EMPTY_SCHEMA_PLACEHOLDER_NAME, EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION, SKIP_THOUGHT_SIGNATURE, getAntigravityUserAgent, } from "../constants.js";
+import { cacheSignature, getCachedSignature } from "./cache.js";
+import { getKeepThinking } from "./config/index.js";
+import { createStreamingTransformer, transformSseLine, transformStreamingPayload, } from "./core/streaming/index.js";
+import { defaultSignatureStore } from "./stores/signature-store.js";
+import { DEBUG_MESSAGE_PREFIX, isDebugEnabled, isDebugTuiEnabled, logAntigravityDebugResponse, logCacheStats, } from "./debug.js";
+import { createLogger } from "./logger.js";
+import { cleanJSONSchemaForAntigravity, DEFAULT_THINKING_BUDGET, deepFilterThinkingBlocks, extractThinkingConfig, extractVariantThinkingConfig, extractUsageFromSsePayload, extractUsageMetadata, fixToolResponseGrouping, validateAndFixClaudeToolPairing, applyToolPairingFixes, injectParameterSignatures, injectToolHardeningInstruction, isThinkingCapableModel, normalizeThinkingConfig, parseAntigravityApiBody, resolveThinkingConfig, rewriteAntigravityPreviewAccessError, transformThinkingParts, } from "./request-helpers.js";
+import { CLAUDE_TOOL_SYSTEM_INSTRUCTION, CLAUDE_DESCRIPTION_PROMPT, ANTIGRAVITY_SYSTEM_INSTRUCTION, } from "../constants.js";
+import { analyzeConversationState, closeToolLoopForThinking, needsThinkingRecovery, } from "./thinking-recovery.js";
+import { sanitizeCrossModelPayloadInPlace } from "./transform/cross-model-sanitizer.js";
+import { isGemini3Model, isImageGenerationModel, buildImageGenerationConfig, applyGeminiTransforms } from "./transform/index.js";
+import { resolveModelWithTier, resolveModelWithVariant, resolveModelForHeaderStyle, isClaudeModel, isClaudeThinkingModel, CLAUDE_THINKING_MAX_OUTPUT_TOKENS, } from "./transform/index.js";
+import { detectErrorType } from "./recovery.js";
 const log = createLogger("request");
 const PLUGIN_SESSION_ID = `-${crypto.randomUUID()}`;
 const sessionDisplayedThinkingHashes = new Set();
@@ -563,6 +562,9 @@ export function prepareAntigravityRequest(input, init, accessToken, projectId, e
     }
     headers.set("Authorization", `Bearer ${accessToken}`);
     headers.delete("x-api-key");
+    // OAuth replaces the provider apiKey placeholder that the AI SDK sends as
+    // x-goog-api-key; never forward it (Headers lookups are case-insensitive).
+    headers.delete("x-goog-api-key");
     // Strip x-goog-user-project header to prevent 403 auth/license conflicts.
     // This header is added by OpenCode/AI SDK and can force project-level checks
     // that are not required for Antigravity/Gemini CLI OAuth requests.
@@ -1193,14 +1195,12 @@ export function prepareAntigravityRequest(input, init, accessToken, projectId, e
         }
     }
     if (headerStyle === "antigravity") {
-        // Use randomized headers as the fallback pool for Antigravity mode
-        const selectedHeaders = getRandomizedHeaders("antigravity", requestedModel);
-        // Antigravity mode: Match Antigravity Manager behavior
-        // AM only sends User-Agent on content requests — no X-Goog-Api-Client, no Client-Metadata header
-        // (ideType=ANTIGRAVITY goes in request body metadata via project.ts, not as a header)
-        const fingerprint = options?.fingerprint ?? getSessionFingerprint();
-        const fingerprintHeaders = buildFingerprintHeaders(fingerprint);
-        headers.set("User-Agent", fingerprintHeaders["User-Agent"] || selectedHeaders["User-Agent"]);
+        // Antigravity Hub content requests send only the Hub User-Agent, resolved now from the
+        // runtime version so stale stored fingerprint agents are never used.
+        // No X-Goog-Api-Client and no Client-Metadata header.
+        headers.set("User-Agent", getAntigravityUserAgent());
+        headers.delete("X-Goog-Api-Client");
+        headers.delete("Client-Metadata");
     }
     else {
         // Gemini CLI mode: match opencode-gemini-auth Code Assist header set exactly

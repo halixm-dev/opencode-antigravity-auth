@@ -4,11 +4,12 @@ import { join } from "node:path";
 
 const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 const CLIENT_SECRET = "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";
-const CLOUD_CODE_BASE = "https://cloudcode-pa.googleapis.com";
-const USER_AGENT = "antigravity/windows/amd64";
+const CLOUD_CODE_BASE = "https://daily-cloudcode-pa.googleapis.com";
+const USER_AGENT = "antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)";
 const FALLBACK_PROJECT_ID = "bamboo-precept-lgxtn";
 
 function getDefaultAccountsPath() {
+  if (process.env.OPENCODE_CONFIG_DIR) return join(process.env.OPENCODE_CONFIG_DIR, "antigravity-accounts.json");
   if (process.platform === "win32") {
     const appData = process.env.APPDATA || join(homedir(), "AppData", "Roaming");
     return join(appData, "opencode", "antigravity-accounts.json");
@@ -94,7 +95,7 @@ async function loadProjectId(accessToken) {
 function classifyGroup(modelName) {
   const lower = modelName.toLowerCase();
   if (lower.includes("claude")) return "claude";
-  if (!lower.includes("gemini-3")) return null;
+  if (!lower.includes("gemini")) return null;
   if (lower.includes("flash")) return "gemini-flash";
   return "gemini-pro";
 }

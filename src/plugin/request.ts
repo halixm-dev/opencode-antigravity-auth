@@ -6,7 +6,7 @@ import {
   EMPTY_SCHEMA_PLACEHOLDER_NAME,
   EMPTY_SCHEMA_PLACEHOLDER_DESCRIPTION,
   SKIP_THOUGHT_SIGNATURE,
-  getRandomizedHeaders,
+  getAntigravityUserAgent,
   type HeaderStyle,
 } from "../constants";
 import { cacheSignature, getCachedSignature } from "./cache";
@@ -69,7 +69,7 @@ import {
   type ThinkingTier,
 } from "./transform";
 import { detectErrorType } from "./recovery";
-import { getSessionFingerprint, buildFingerprintHeaders, type Fingerprint } from "./fingerprint";
+import type { Fingerprint } from "./fingerprint";
 import type { GoogleSearchConfig } from "./transform/types";
 
 const log = createLogger("request");
@@ -739,7 +739,10 @@ export interface PrepareRequestOptions {
   claudePromptAutoCaching?: boolean;
   /** Google Search configuration (global default) */
   googleSearch?: GoogleSearchConfig;
-  /** Per-account fingerprint for rate limit mitigation. Falls back to session fingerprint if not provided. */
+  /**
+   * Per-account fingerprint. Kept for API compatibility: Antigravity requests always send
+   * the current Hub User-Agent, never a stored fingerprint userAgent.
+   */
   fingerprint?: Fingerprint;
 }
 
@@ -789,6 +792,9 @@ export function prepareAntigravityRequest(
 
   headers.set("Authorization", `Bearer ${accessToken}`);
   headers.delete("x-api-key");
+  // OAuth replaces the provider apiKey placeholder that the AI SDK sends as
+  // x-goog-api-key; never forward it (Headers lookups are case-insensitive).
+  headers.delete("x-goog-api-key");
   // Strip x-goog-user-project header to prevent 403 auth/license conflicts.
   // This header is added by OpenCode/AI SDK and can force project-level checks
   // that are not required for Antigravity/Gemini CLI OAuth requests.
@@ -1538,16 +1544,12 @@ export function prepareAntigravityRequest(
   }
 
   if (headerStyle === "antigravity") {
-    // Use randomized headers as the fallback pool for Antigravity mode
-    const selectedHeaders = getRandomizedHeaders("antigravity", requestedModel);
-
-    // Antigravity mode: Match Antigravity Manager behavior
-    // AM only sends User-Agent on content requests — no X-Goog-Api-Client, no Client-Metadata header
-    // (ideType=ANTIGRAVITY goes in request body metadata via project.ts, not as a header)
-    const fingerprint = options?.fingerprint ?? getSessionFingerprint();
-    const fingerprintHeaders = buildFingerprintHeaders(fingerprint);
-
-    headers.set("User-Agent", fingerprintHeaders["User-Agent"] || selectedHeaders["User-Agent"]);
+    // Antigravity Hub content requests send only the Hub User-Agent, resolved now from the
+    // runtime version so stale stored fingerprint agents are never used.
+    // No X-Goog-Api-Client and no Client-Metadata header.
+    headers.set("User-Agent", getAntigravityUserAgent());
+    headers.delete("X-Goog-Api-Client");
+    headers.delete("Client-Metadata");
   } else {
     // Gemini CLI mode: match opencode-gemini-auth Code Assist header set exactly
     headers.set("User-Agent", GEMINI_CLI_HEADERS["User-Agent"]);

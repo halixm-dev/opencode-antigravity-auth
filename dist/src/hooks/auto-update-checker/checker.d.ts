@@ -1,4 +1,4 @@
-import type { UpdateCheckResult } from "./types";
+import type { UpdateCheckResult } from "./types.js";
 export declare function isLocalDevMode(directory: string): boolean;
 export declare function getLocalDevPath(directory: string): string | null;
 export declare function getLocalDevVersion(directory: string): string | null;

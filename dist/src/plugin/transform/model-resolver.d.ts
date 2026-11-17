@@ -4,7 +4,7 @@
  * Resolves model names with tier suffixes (e.g., gemini-3-pro-high, claude-opus-4-6-thinking-low)
  * to their actual API model names and corresponding thinking configurations.
  */
-import type { ResolvedModel, GoogleSearchConfig } from "./types";
+import type { ResolvedModel, GoogleSearchConfig } from "./types.js";
 export interface ModelResolverOptions {
     cli_first?: boolean;
 }
@@ -49,8 +49,16 @@ export declare const GEMINI_3_THINKING_LEVELS: readonly ["minimal", "low", "medi
  * - Claude non-thinking: claude-{model} (no -thinking suffix)
  */
 export declare const MODEL_ALIASES: Record<string, string>;
+export declare const ADVERTISED_TIER_SUFFIX_MODEL_IDS: ReadonlySet<string>;
+/** Preserve backend IDs discovered from Google's account-specific catalog. */
+export declare function registerAdvertisedModelIds(ids: Iterable<string>): void;
 export declare function isTieredFlashModel(model: string): boolean;
 export declare function isGemini3_8FlashModel(model: string): boolean;
+/**
+ * True for advertised model IDs whose tier-like suffix must not be stripped.
+ * Accepts names with or without the "antigravity-" quota prefix.
+ */
+export declare function isAdvertisedTierSuffixModel(model: string): boolean;
 /**
  * Resolves a model name with optional tier suffix and quota prefix to its actual API model name
  * and corresponding thinking configuration.

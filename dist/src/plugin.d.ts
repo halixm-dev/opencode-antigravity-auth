@@ -1,13 +1,17 @@
-import { type HeaderStyle } from "./constants";
-import { type ModelFamily } from "./plugin/accounts";
-import { type AntigravityConfig } from "./plugin/config";
-import type { PluginContext, PluginResult } from "./plugin/types";
+import { type HeaderStyle } from "./constants.js";
+import type { AntigravityTokenExchangeResult } from "./antigravity/oauth.js";
+import { type ModelFamily } from "./plugin/accounts.js";
+import { type AntigravityConfig } from "./plugin/config/index.js";
+import type { PluginContext, PluginResult } from "./plugin/types.js";
+export declare function persistAccountPool(results: Array<Extract<AntigravityTokenExchangeResult, {
+    type: "success";
+}>>, replaceAll?: boolean): Promise<void>;
 /**
  * Creates an Antigravity OAuth plugin for a specific provider ID.
  */
-export declare const createAntigravityPlugin: (providerId: string) => ({ client, directory }: PluginContext) => Promise<PluginResult>;
-export declare const AntigravityCLIOAuthPlugin: ({ client, directory }: PluginContext) => Promise<PluginResult>;
-export declare const GoogleOAuthPlugin: ({ client, directory }: PluginContext) => Promise<PluginResult>;
+export declare const createAntigravityPlugin: (providerId: string) => ({ client, directory, runtimeVersion, fetch: sendFetch, canUseAccount }: PluginContext) => Promise<PluginResult>;
+export declare const AntigravityCLIOAuthPlugin: ({ client, directory, runtimeVersion, fetch: sendFetch, canUseAccount }: PluginContext) => Promise<PluginResult>;
+export declare const GoogleOAuthPlugin: ({ client, directory, runtimeVersion, fetch: sendFetch, canUseAccount }: PluginContext) => Promise<PluginResult>;
 declare function resolveQuotaFallbackHeaderStyle(input: {
     family: ModelFamily;
     headerStyle: HeaderStyle;

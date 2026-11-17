@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkS
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { tmpdir } from "node:os";
-import { ensureGitignoreSync } from "../storage";
+import { ensureGitignoreSync } from "../storage.js";
 // =============================================================================
 // Path Utilities
 // =============================================================================

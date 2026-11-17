@@ -1,8 +1,8 @@
 # Antigravity Unified Gateway API Specification
 
-**Version:** 1.0
-**Last Updated:** December 13, 2025
-**Status:** Verified by Direct API Testing
+**Version:** 2.0
+**Last Updated:** October 21, 2026
+**Status:** Current Hub protocol reference; live account access requires verification
 
 ---
 
@@ -23,9 +23,12 @@ Antigravity is Google's **Unified Gateway API** for accessing multiple AI models
 
 | Environment | URL | Status |
 |-------------|-----|--------|
-| **Daily (Sandbox)** | `https://daily-cloudcode-pa.sandbox.googleapis.com` | ✅ Active |
-| **Production** | `https://cloudcode-pa.googleapis.com` | ✅ Active |
-| **Autopush (Sandbox)** | `https://autopush-cloudcode-pa.sandbox.googleapis.com` | ❌ Unavailable |
+| **Antigravity Hub** | `https://daily-cloudcode-pa.googleapis.com` | Consumer Antigravity requests |
+| **Gemini CLI** | `https://cloudcode-pa.googleapis.com` | Separate Gemini CLI quota |
+
+Antigravity consumer requests stay on the non-sandbox daily host. Do not retry
+them against Gemini CLI's production host: its entitlements and quota responses
+can differ. See the [current protocol and migration notes](OPENCODE-V2.md).
 
 ### API Actions
 
@@ -35,6 +38,7 @@ Antigravity is Google's **Unified Gateway API** for accessing multiple AI models
 | Stream Generate | `/v1internal:streamGenerateContent?alt=sse` | Streaming (SSE) request |
 | Load Code Assist | `/v1internal:loadCodeAssist` | Project discovery |
 | Onboard User | `/v1internal:onboardUser` | User onboarding |
+| Available Models | `/v1internal:fetchAvailableModels` | Account-specific model inventory and quota |
 
 ---
 
@@ -43,7 +47,7 @@ Antigravity is Google's **Unified Gateway API** for accessing multiple AI models
 ### OAuth 2.0 Setup
 
 ```
-Authorization URL: https://accounts.google.com/o/oauth2/auth
+Authorization URL: https://accounts.google.com/o/oauth2/v2/auth
 Token URL: https://oauth2.googleapis.com/token
 ```
 
@@ -62,10 +66,14 @@ https://www.googleapis.com/auth/experimentsandconfigs
 ```http
 Authorization: Bearer {access_token}
 Content-Type: application/json
-User-Agent: antigravity/1.15.8 windows/amd64
-X-Goog-Api-Client: google-cloud-sdk vscode_cloudshelleditor/0.1
-Client-Metadata: {"ideType":"ANTIGRAVITY","platform":"MACOS","pluginType":"GEMINI"}
+User-Agent: antigravity/hub/2.24.0 (aidev_client; os_type=darwin; arch=arm64; cl=1000335682)
 ```
+
+The version comes from the Hub updater manifest; the example is the current
+fallback. OAuth content requests omit `x-goog-api-key`, `Client-Metadata`, and
+`x-goog-user-project`. Put the project in the JSON envelope. `loadCodeAssist`
+sends `metadata: { ideType: "ANTIGRAVITY" }`; onboarding uses the separate
+snake_case metadata fields documented in the implementation.
 
 For streaming requests, also include:
 ```http
@@ -78,11 +86,19 @@ Accept: text/event-stream
 
 | Model Name | Model ID | Type | Status |
 |------------|----------|------|--------|
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Anthropic | ✅ Verified |
-| Claude Opus 4.6 Thinking | `claude-opus-4-6-thinking` | Anthropic | ✅ Verified |
-| Gemini 3 Pro High | `gemini-3-pro-high` | Google | ✅ Verified |
-| Gemini 3 Pro Low | `gemini-3-pro-low` | Google | ✅ Verified |
-| GPT-OSS 120B Medium | `gpt-oss-120b-medium` | Other | ✅ Verified |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Anthropic | Account dependent |
+| Claude Opus 4.6 Thinking | `claude-opus-4-6-thinking` | Anthropic | Account dependent |
+| Claude Opus 5.5 High | `claude-opus-5-5-high` | Anthropic | Reference inventory |
+| Claude Sonnet 5.5 High | `claude-sonnet-5-5-high` | Anthropic | Reference inventory |
+| Gemini 4 Argon | `gemini-4-argon-high` | Google | Reference inventory |
+| Gemini 3.8 Flash | `gemini-3.8-flash-high` | Google | Reference inventory |
+| Gemini 3 Flash | `gemini-3-flash` | Google | Account dependent |
+| GPT-OSS 120B Medium | `gpt-oss-120b-medium` | Other | Account dependent |
+
+The reference inventory is maintained by
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI/blob/main/internal/registry/models/models.json).
+Use `fetchAvailableModels` with your account to establish actual availability.
+Suffixes in advertised backend IDs are preserved.
 
 ---
 
@@ -101,7 +117,8 @@ Accept: text/event-stream
     "tools": [...]
   },
   "userAgent": "antigravity",
-  "requestId": "{unique_id}"
+  "requestType": "agent",
+  "requestId": "agent-{unique_id}"
 }
 ```
 

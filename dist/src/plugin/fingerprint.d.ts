@@ -38,23 +38,26 @@ export interface FingerprintHeaders {
 }
 /**
  * Generate a randomized device fingerprint.
- * Each fingerprint represents a unique "device" identity.
+ * Each fingerprint represents a unique "device" identity. The userAgent is the
+ * shared Hub User-Agent because Cloud Code ties it to the release and build CL.
  */
 export declare function generateFingerprint(): Fingerprint;
 /**
  * Collect fingerprint based on actual current system.
- * Uses real OS info instead of randomized values.
+ * Uses real OS info for stored metadata; the userAgent is still the Hub User-Agent.
  */
 export declare function collectCurrentFingerprint(): Fingerprint;
 /**
- * Update the version in a fingerprint's userAgent to match the current runtime version.
- * Called after version fetcher resolves so saved fingerprints always carry the latest version.
+ * Migrate a fingerprint's userAgent to the current Hub User-Agent.
+ * Saved fingerprints may carry a legacy `antigravity/<version> <os>/<arch>` agent or
+ * an older Hub release. Requests never send the stored value; this keeps storage in sync.
  * Returns true if the userAgent was changed.
  */
 export declare function updateFingerprintVersion(fingerprint: Fingerprint): boolean;
 /**
  * Build HTTP headers from a fingerprint object.
- * These headers are used to identify the "device" making API requests.
+ * The User-Agent is resolved at call time from the current Hub version, so a stale
+ * stored fingerprint userAgent is never sent.
  */
 export declare function buildFingerprintHeaders(fingerprint: Fingerprint | null): Partial<FingerprintHeaders>;
 /**

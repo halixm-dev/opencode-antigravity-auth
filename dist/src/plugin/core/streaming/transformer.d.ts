@@ -1,4 +1,4 @@
-import type { SignatureStore, StreamingCallbacks, StreamingOptions, ThoughtBuffer } from './types';
+import type { SignatureStore, StreamingCallbacks, StreamingOptions, ThoughtBuffer } from './types.js';
 export declare function createThoughtBuffer(): ThoughtBuffer;
 export declare function transformStreamingPayload(payload: string, transformThinkingParts?: (response: unknown) => unknown): string;
 export declare function deduplicateThinkingText(response: unknown, sentBuffer: ThoughtBuffer, displayedThinkingHashes?: Set<string>): unknown;

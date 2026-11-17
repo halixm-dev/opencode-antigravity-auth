@@ -8,9 +8,9 @@
  *
  * Based on oh-my-opencode/src/hooks/session-recovery/index.ts
  */
-import type { AntigravityConfig } from "./config";
-import type { PluginClient } from "./types";
-import type { MessageInfo, RecoveryErrorType } from "./recovery/types";
+import type { AntigravityConfig } from "./config/index.js";
+import type { PluginClient } from "./types.js";
+import type { MessageInfo, RecoveryErrorType } from "./recovery/types.js";
 /**
  * Detect the type of recoverable error from an error object.
  */

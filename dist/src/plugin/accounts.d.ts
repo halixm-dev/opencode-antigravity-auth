@@ -1,10 +1,10 @@
-import { type AccountStorageV4, type AccountMetadataV3, type RateLimitStateV3, type ModelFamily, type HeaderStyle, type CooldownReason } from "./storage";
-import type { OAuthAuthDetails, RefreshParts } from "./types";
-import type { AccountSelectionStrategy } from "./config/schema";
-import { type Fingerprint, type FingerprintVersion } from "./fingerprint";
-import type { QuotaGroup, QuotaGroupSummary } from "./quota";
-export type { ModelFamily, HeaderStyle, CooldownReason } from "./storage";
-export type { AccountSelectionStrategy } from "./config/schema";
+import { type AccountStorageV4, type AccountMetadataV3, type RateLimitStateV3, type ModelFamily, type HeaderStyle, type CooldownReason } from "./storage.js";
+import type { OAuthAuthDetails, RefreshParts } from "./types.js";
+import type { AccountSelectionStrategy } from "./config/schema.js";
+import { type Fingerprint, type FingerprintVersion } from "./fingerprint.js";
+import type { QuotaGroup, QuotaGroupSummary } from "./quota.js";
+export type { ModelFamily, HeaderStyle, CooldownReason } from "./storage.js";
+export type { AccountSelectionStrategy } from "./config/schema.js";
 export type RateLimitReason = "QUOTA_EXHAUSTED" | "RATE_LIMIT_EXCEEDED" | "MODEL_CAPACITY_EXHAUSTED" | "SERVER_ERROR" | "UNKNOWN";
 export interface RateLimitBackoffResult {
     backoffMs: number;
@@ -16,6 +16,7 @@ export type BaseQuotaKey = "claude" | "gemini-antigravity" | "gemini-cli";
 export type QuotaKey = BaseQuotaKey | `${BaseQuotaKey}:${string}`;
 export interface ManagedAccount {
     index: number;
+    id?: string;
     email?: string;
     addedAt: number;
     lastUsed: number;
@@ -32,7 +33,7 @@ export interface ManagedAccount {
     /** Timestamp of last failure for TTL-based reset of consecutiveFailures */
     lastFailureTime?: number;
     /** Per-account device fingerprint for rate limit mitigation */
-    fingerprint?: import("./fingerprint").Fingerprint;
+    fingerprint?: import("./fingerprint.js").Fingerprint;
     /** History of previous fingerprints for this account */
     fingerprintHistory?: FingerprintVersion[];
     /** Cached quota data from last checkAccountsQuota() call */
@@ -74,10 +75,17 @@ export declare class AccountManager {
     private lastToastAccountIndex;
     private lastToastTime;
     private savePending;
+    private retired;
+    private activeSaves;
+    private saveTail;
+    private managedStorage;
+    private persistedAccounts;
+    private credentialSources;
+    private persistedSelections;
     private saveTimeout;
     private savePromiseResolvers;
-    static loadFromDisk(authFallback?: OAuthAuthDetails): Promise<AccountManager>;
-    constructor(authFallback?: OAuthAuthDetails, stored?: AccountStorageV4 | null);
+    static loadFromDisk(authFallback?: OAuthAuthDetails, managedStorage?: boolean): Promise<AccountManager>;
+    constructor(authFallback?: OAuthAuthDetails, stored?: AccountStorageV4 | null, managedStorage?: boolean);
     getAccountCount(): number;
     getTotalAccountCount(): number;
     getEnabledAccounts(): ManagedAccount[];
@@ -90,8 +98,8 @@ export declare class AccountManager {
      */
     shouldShowAccountToast(accountIndex: number, debounceMs?: number): boolean;
     markToastShown(accountIndex: number): void;
-    getCurrentOrNextForFamily(family: ModelFamily, model?: string | null, strategy?: AccountSelectionStrategy, headerStyle?: HeaderStyle, pidOffsetEnabled?: boolean, softQuotaThresholdPercent?: number, softQuotaCacheTtlMs?: number): ManagedAccount | null;
-    getNextForFamily(family: ModelFamily, model?: string | null, headerStyle?: HeaderStyle, softQuotaThresholdPercent?: number, softQuotaCacheTtlMs?: number): ManagedAccount | null;
+    getCurrentOrNextForFamily(family: ModelFamily, model?: string | null, strategy?: AccountSelectionStrategy, headerStyle?: HeaderStyle, pidOffsetEnabled?: boolean, softQuotaThresholdPercent?: number, softQuotaCacheTtlMs?: number, eligible?: (account: ManagedAccount) => boolean): ManagedAccount | null;
+    getNextForFamily(family: ModelFamily, model?: string | null, headerStyle?: HeaderStyle, softQuotaThresholdPercent?: number, softQuotaCacheTtlMs?: number, eligible?: (account: ManagedAccount) => boolean): ManagedAccount | null;
     markRateLimited(account: ManagedAccount, retryAfterMs: number, family: ModelFamily, headerStyle?: HeaderStyle, model?: string | null): void;
     /**
      * Mark an account as used after a successful API request.
@@ -124,19 +132,25 @@ export declare class AccountManager {
      * @param model - Optional model name for model-specific rate limits
      * @returns true if any other enabled, non-cooling-down account has antigravity available
      */
-    hasOtherAccountWithAntigravityAvailable(currentAccountIndex: number, family: ModelFamily, model?: string | null): boolean;
+    hasOtherAccountWithAntigravityAvailable(currentAccountIndex: number, family: ModelFamily, model?: string | null, eligible?: (account: ManagedAccount) => boolean): boolean;
     setAccountEnabled(accountIndex: number, enabled: boolean): boolean;
     markAccountVerificationRequired(accountIndex: number, reason?: string, verifyUrl?: string): boolean;
     clearAccountVerificationRequired(accountIndex: number, enableAccount?: boolean): boolean;
     removeAccountByIndex(accountIndex: number): boolean;
     removeAccount(account: ManagedAccount): boolean;
-    updateFromAuth(account: ManagedAccount, auth: OAuthAuthDetails): void;
+    updateFromAuth(account: ManagedAccount, auth: OAuthAuthDetails, previousToken?: string): void;
     toAuthDetails(account: ManagedAccount): OAuthAuthDetails;
-    getMinWaitTimeForFamily(family: ModelFamily, model?: string | null, headerStyle?: HeaderStyle, strict?: boolean): number;
+    getMinWaitTimeForFamily(family: ModelFamily, model?: string | null, headerStyle?: HeaderStyle, strict?: boolean, eligible?: (account: ManagedAccount) => boolean): number;
     getAccounts(): ManagedAccount[];
     saveToDisk(): Promise<void>;
+    /** V2 menus own pool membership and controls. Transport writes are patches. */
+    useManagedStorage(): void;
+    private persistManagedAccounts;
+    private persistToDisk;
     requestSaveToDisk(): void;
     flushSaveToDisk(): Promise<void>;
+    /** Drain existing writes and reject writes from requests using this old pool. */
+    retire(): Promise<void>;
     private executeSave;
     /**
      * Regenerate fingerprint for an account, saving the old one to history.
@@ -161,13 +175,13 @@ export declare class AccountManager {
     isAccountOverSoftQuota(account: ManagedAccount, family: ModelFamily, thresholdPercent: number, cacheTtlMs: number, model?: string | null): boolean;
     getAccountsForQuotaCheck(): AccountMetadataV3[];
     getOldestQuotaCacheAge(): number | null;
-    areAllAccountsOverSoftQuota(family: ModelFamily, thresholdPercent: number, cacheTtlMs: number, model?: string | null): boolean;
+    areAllAccountsOverSoftQuota(family: ModelFamily, thresholdPercent: number, cacheTtlMs: number, model?: string | null, eligible?: (account: ManagedAccount) => boolean): boolean;
     /**
      * Get minimum wait time until any account's soft quota resets.
      * Returns 0 if any account is available (not over threshold).
      * Returns the minimum resetTime across all over-threshold accounts.
      * Returns null if no resetTime data is available.
      */
-    getMinWaitTimeForSoftQuota(family: ModelFamily, thresholdPercent: number, cacheTtlMs: number, model?: string | null): number | null;
+    getMinWaitTimeForSoftQuota(family: ModelFamily, thresholdPercent: number, cacheTtlMs: number, model?: string | null, eligible?: (account: ManagedAccount) => boolean): number | null;
 }
 //# sourceMappingURL=accounts.d.ts.map

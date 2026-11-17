@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  acquireDiskSignatureCache,
+  getDiskSignatureCache,
   resolveCachedAuth,
   storeCachedAuth,
   clearCachedAuth,
@@ -293,3 +295,31 @@ describe("Signature Cache", () => {
     });
   });
 });
+
+
+describe("shared disk signature cache lifecycle", () => {
+  it("stops shared timers only after the final plugin releases the cache", () => {
+    vi.useFakeTimers()
+    vi.stubEnv("XDG_CONFIG_HOME", "/tmp/antigravity-signature-cache-lifecycle-test")
+    const config = { enabled: true, memory_ttl_seconds: 3600, disk_ttl_seconds: 86400, write_interval_seconds: 30 }
+    const initialTimers = vi.getTimerCount()
+    const first = acquireDiskSignatureCache(config)
+    const cache = getDiskSignatureCache()
+    const second = acquireDiskSignatureCache(config)
+    try {
+      expect(vi.getTimerCount()).toBe(initialTimers + 2)
+      first()
+      first()
+      expect(getDiskSignatureCache()).toBe(cache)
+      expect(vi.getTimerCount()).toBe(initialTimers + 2)
+      second()
+      expect(getDiskSignatureCache()).toBeNull()
+      expect(vi.getTimerCount()).toBe(initialTimers)
+    } finally {
+      first()
+      second()
+      vi.unstubAllEnvs()
+      vi.useRealTimers()
+    }
+  })
+})

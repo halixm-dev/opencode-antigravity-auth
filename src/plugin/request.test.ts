@@ -8,7 +8,7 @@ import {
 } from "./request";
 import { DEFAULT_CONFIG } from "./config";
 import { initializeDebug } from "./debug";
-import { SKIP_THOUGHT_SIGNATURE } from "../constants";
+import { SKIP_THOUGHT_SIGNATURE, getAntigravityUserAgent } from "../constants";
 import * as config from "./config";
 import type { SignatureStore, ThoughtBuffer, StreamingCallbacks, StreamingOptions } from "./core/streaming/types";
 
@@ -595,6 +595,130 @@ it("removes x-api-key header", () => {
       );
       const headers = result.init.headers as Headers;
       expect(headers.get("x-api-key")).toBeNull();
+    });
+
+    it("strips x-goog-api-key case-insensitively for antigravity headerStyle", () => {
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
+        { method: "POST", body: JSON.stringify({ contents: [] }), headers: { "X-Goog-Api-Key": "antigravity-oauth" } },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "antigravity"
+      );
+      const headers = result.init.headers as Headers;
+      expect(headers.get("x-goog-api-key")).toBeNull();
+      expect(headers.get("Authorization")).toBe("Bearer test-token");
+    });
+
+    it("strips x-goog-api-key for gemini-cli headerStyle", () => {
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        { method: "POST", body: JSON.stringify({ contents: [] }), headers: [["x-goog-api-key", "antigravity-oauth"]] },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "gemini-cli"
+      );
+      const headers = result.init.headers as Headers;
+      expect(headers.get("x-goog-api-key")).toBeNull();
+    });
+
+    it("strips x-goog-api-key on generativelanguage URLs without a model action", () => {
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models",
+        { method: "GET", headers: new Headers({ "x-goog-api-key": "antigravity-oauth" }) },
+        mockAccessToken,
+        mockProjectId
+      );
+      const headers = result.init.headers as Headers;
+      expect(result.request).toBe("https://generativelanguage.googleapis.com/v1beta/models");
+      expect(headers.get("x-goog-api-key")).toBeNull();
+    });
+
+    it("leaves headers of non-generativelanguage requests untouched", () => {
+      const result = prepareAntigravityRequest(
+        "https://example.com/api",
+        { method: "POST", headers: { "x-goog-api-key": "user-key", Authorization: "Bearer other" } },
+        mockAccessToken,
+        mockProjectId
+      );
+      const headers = result.init.headers as Headers;
+      expect(result.request).toBe("https://example.com/api");
+      expect(headers.get("x-goog-api-key")).toBe("user-key");
+      expect(headers.get("Authorization")).toBe("Bearer other");
+    });
+
+    it("sends only the current Hub User-Agent for antigravity, ignoring stored fingerprint agents", () => {
+      const result = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/claude-opus-4-6-thinking:generateContent",
+        {
+          method: "POST",
+          body: JSON.stringify({ contents: [] }),
+          headers: { "X-Goog-Api-Client": "stale-client", "Client-Metadata": "{\"platform\":\"WINDOWS\"}" },
+        },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "antigravity",
+        false,
+        {
+          fingerprint: {
+            deviceId: "device",
+            sessionToken: "session",
+            userAgent: "antigravity/1.18.3 windows/amd64",
+            apiClient: "google-cloud-sdk vscode/1.96.0",
+            clientMetadata: { ideType: "ANTIGRAVITY", platform: "WINDOWS", pluginType: "GEMINI" },
+            createdAt: 0,
+          },
+        }
+      );
+      const headers = result.init.headers as Headers;
+      expect(headers.get("User-Agent")).toBe(getAntigravityUserAgent());
+      expect(headers.get("User-Agent")).toMatch(/^antigravity\/hub\//);
+      expect(headers.get("X-Goog-Api-Client")).toBeNull();
+      expect(headers.get("Client-Metadata")).toBeNull();
+    });
+
+    it("routes antigravity to the daily non-sandbox host and gemini-cli to production by default", () => {
+      const antigravity = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:streamGenerateContent",
+        { method: "POST", body: JSON.stringify({ contents: [] }) },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "antigravity"
+      );
+      expect(antigravity.request).toBe("https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse");
+
+      const geminiCli = prepareAntigravityRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        { method: "POST", body: JSON.stringify({ contents: [] }) },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "gemini-cli"
+      );
+      expect(geminiCli.request).toBe("https://cloudcode-pa.googleapis.com/v1internal:generateContent");
+    });
+
+    it.each([
+      "claude-opus-5-5-high",
+      "claude-sonnet-5-5-high",
+      "gemini-4-argon-high",
+      "gemini-3.8-flash-high",
+      "gpt-oss-120b-medium",
+    ])("sends advertised model ID %s unchanged to Antigravity", (modelId) => {
+      const result = prepareAntigravityRequest(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+        { method: "POST", body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "hi" }] }] }) },
+        mockAccessToken,
+        mockProjectId,
+        undefined,
+        "antigravity"
+      );
+      expect(result.effectiveModel).toBe(modelId);
+      expect(JSON.parse(result.init.body as string).model).toBe(modelId);
     });
 
     it("removes x-goog-user-project header for antigravity headerStyle", () => {

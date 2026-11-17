@@ -1,4 +1,4 @@
-import type { AntigravityConfig } from "./config";
+import type { AntigravityConfig } from "./config/index.js";
 export declare const DEBUG_MESSAGE_PREFIX = "[opencode-antigravity-auth debug]";
 /**
  * Initialize or reinitialize debug state with the given config.

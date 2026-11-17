@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProactiveRefreshQueue } from "./refresh-queue";
 import { AccountManager } from "./accounts";
 import type { AccountStorageV4 } from "./storage";
-import type { PluginClient } from "./types";
+import type { OAuthAuthDetails, PluginClient } from "./types";
+import { refreshAccessToken } from "./token";
+
+vi.mock("./token", () => ({ refreshAccessToken: vi.fn() }));
+
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 // Mock PluginClient
 const mockClient: PluginClient = {
@@ -17,6 +22,29 @@ const mockClient: PluginClient = {
 describe("ProactiveRefreshQueue", () => {
   beforeEach(() => {
     vi.useRealTimers();
+  });
+
+  it("waits for an in-flight refresh and its save before stopping", async () => {
+    vi.useFakeTimers();
+    const manager = new AccountManager(undefined, { version: 4, activeIndex: 0, accounts: [{ refreshToken: "old", addedAt: 1, lastUsed: 1 }] });
+    manager.getAccounts()[0]!.expires = Date.now() + 600000;
+    const save = vi.spyOn(manager, "saveToDisk").mockResolvedValue(undefined);
+    let finish: (value: OAuthAuthDetails) => void = () => { throw new Error("Refresh did not start"); };
+    vi.mocked(refreshAccessToken).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const queue = new ProactiveRefreshQueue(mockClient, "google");
+    queue.setAccountManager(manager);
+    queue.start();
+    await vi.advanceTimersByTimeAsync(5000);
+    let stopped = false;
+    const stopping = queue.stop().then(() => { stopped = true; });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    finish({ type: "oauth", refresh: "rotated", access: "fresh", expires: Date.now() + 3600000 });
+    await stopping;
+    expect(save).toHaveBeenCalledOnce();
+    expect(manager.getAccounts()[0]?.parts.refreshToken).toBe("rotated");
+    await vi.advanceTimersByTimeAsync(300000);
+    expect(save).toHaveBeenCalledOnce();
   });
 
   describe("getAccountsNeedingRefresh", () => {

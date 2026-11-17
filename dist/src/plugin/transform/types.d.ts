@@ -1,4 +1,4 @@
-import type { HeaderStyle } from "../../constants";
+import type { HeaderStyle } from "../../constants.js";
 export type ModelFamily = "claude" | "gemini-flash" | "gemini-pro";
 export type ThinkingTier = "low" | "medium" | "high";
 /**

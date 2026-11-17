@@ -1,5 +1,77 @@
 # Changelog
 
+## [2.1.2] - 2026-10-27
+
+### Added
+
+- **#600** - Show each account's lowest cached quota and relative reset time in
+  `/antigravity`, without making live quota requests. Select an enabled account
+  directly from its row; **Manage account…** keeps verification, enable/disable,
+  re-authentication, and deletion available.
+
+### Fixed
+
+- Pin the OpenCode SDK dependencies to the validated 2.1.2 release so fresh
+  installations avoid the npm peer-resolution crash with SDK 2.2.0.
+
+## [2.1.1] - 2026-10-22
+
+### Fixed
+
+- **#598** - Hide native Google API-key models while Antigravity OAuth is selected,
+  preventing OAuth access tokens from being sent as invalid API keys. The native
+  catalog returns when switching to a Google API-key connection.
+
+## [2.1.0] - 2026-10-21
+
+### Added
+
+- Native `/antigravity` (`/ag`) menu for logged-in accounts, live quotas and reset
+  times, account selection, enable/disable, re-authentication, and deletion.
+- Account-specific models and token limits from Google's selectable inventory,
+  with a one-hour cache and manual refresh from the account menu.
+
+### Fixed
+
+- Retired and disabled model aliases no longer appear in the picker or fall
+  through to Google's native API-key transport.
+- Account changes invalidate cached models and safely stop stale refresh work.
+- In-flight refreshes and quota checks cannot undo account disabling or deletion.
+- Account IDs survive token rotation, and native account switching is respected.
+- Discovery preserves rotated credentials and routes models to accounts with access.
+- Routine quota checks skip disabled accounts and show readable per-account
+  results, including large saved-account pools.
+- Gemini CLI quotas include current model versions returned by Google.
+- Packaged TUI entrypoint and declarations work in a fresh production install.
+
+### Documentation
+
+- Replaced the README with minimal setup, usage, and account-menu instructions.
+- Recorded authenticated model, tool, quota, and menu checks on OpenCode 2.1.2.
+
+## [2.0.0] - 2026-10-21
+
+### Added
+
+- OpenCode V2.1.2 plugin registration, Google OAuth integration, automatic model
+  registration, thinking variants, and the Google Search tool.
+- A V2 CLI regression harness covering Gemini and Claude streaming and tool
+  round trips in isolated temporary directories.
+- V2 plugin configuration and runtime model registration, with native Google
+  models left intact and a V1.18.29+ server entrypoint retained.
+
+### Breaking
+
+- OpenCode V1 hosts older than 1.18.29 must upgrade before loading this release.
+
+### Fixed
+
+- Current Antigravity Hub version discovery, request identity, consumer endpoint,
+  project metadata, and removal of SDK API keys from OAuth requests.
+- Published ESM imports include explicit file extensions.
+- V2 plugin cleanup stops refresh resources and avoids V1 session-file recovery.
+- Account selection survives duplicate sign-ins and merging of saved account pools.
+
 ## [1.6.0] - 2026-02-20
 
 ### Fixed
