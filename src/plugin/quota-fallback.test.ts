@@ -24,9 +24,12 @@ type ResolveHeaderRoutingDecision = (
   allowQuotaFallback: boolean;
 };
 
+type IsMissingLicenseError = (bodyText: string) => boolean;
+
 let resolveQuotaFallbackHeaderStyle: ResolveQuotaFallbackHeaderStyle | undefined;
 let getHeaderStyleFromUrl: GetHeaderStyleFromUrl | undefined;
 let resolveHeaderRoutingDecision: ResolveHeaderRoutingDecision | undefined;
+let isMissingLicenseError: IsMissingLicenseError | undefined;
 
 beforeAll(async () => {
   vi.mock("@opencode-ai/plugin", () => ({
@@ -43,6 +46,9 @@ beforeAll(async () => {
   resolveHeaderRoutingDecision = (__testExports as {
     resolveHeaderRoutingDecision?: ResolveHeaderRoutingDecision;
   }).resolveHeaderRoutingDecision;
+  isMissingLicenseError = (__testExports as {
+    isMissingLicenseError?: IsMissingLicenseError;
+  }).isMissingLicenseError;
 });
 
 describe("quota fallback direction", () => {
@@ -187,5 +193,41 @@ describe("header routing decision", () => {
       explicitQuota: false,
       allowQuotaFallback: true,
     });
+  });
+});
+
+describe("missing license detection", () => {
+  const licenseBody = `[{
+  "error": {
+    "code": 403,
+    "message": "You do not have a valid license of this product. Please contact your administrator to request a license. If you are not an enterprise user and believe you are receiving this message as an error, please try using the latest version and logging in again. (#3501)",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "SUBSCRIPTION_REQUIRED",
+        "domain": "cloudaicompanion.googleapis.com"
+      }
+    ]
+  }
+}]`;
+
+  it("detects the Cloud Code #3501 subscription error", () => {
+    expect(isMissingLicenseError?.(licenseBody)).toBe(true);
+  });
+
+  it("detects escaped and truncated license bodies", () => {
+    expect(isMissingLicenseError?.("{\"error\":\"SUBSCRIPTION_REQUIRED\"}")).toBe(true);
+    expect(isMissingLicenseError?.("data: {\\\"reason\\\":\\\"#3501\\\"}")).toBe(true);
+  });
+
+  it("ignores verification, quota, and unrelated 403 bodies", () => {
+    expect(
+      isMissingLicenseError?.('{"error":{"status":"PERMISSION_DENIED","reason":"validation_required"}}'),
+    ).toBe(false);
+    expect(
+      isMissingLicenseError?.('{"error":{"status":"RESOURCE_EXHAUSTED","reason":"rateLimitExceeded"}}'),
+    ).toBe(false);
+    expect(isMissingLicenseError?.("")).toBe(false);
   });
 });

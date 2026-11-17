@@ -3,6 +3,14 @@ import type { AntigravityTokenExchangeResult } from "./antigravity/oauth.js";
 import { type ModelFamily } from "./plugin/accounts.js";
 import { type AntigravityConfig } from "./plugin/config/index.js";
 import type { PluginContext, PluginResult } from "./plugin/types.js";
+/**
+ * Detects the Cloud Code "missing product license" 403 (#3501).
+ *
+ * Google returns it when the signed-in account has no entitlement for the quota
+ * pool behind the request. It is not a rate limit and retrying the same pool
+ * never succeeds, so the transport treats it as "this pool is unavailable".
+ */
+declare function isMissingLicenseError(bodyText: string): boolean;
 export declare function persistAccountPool(results: Array<Extract<AntigravityTokenExchangeResult, {
     type: "success";
 }>>, replaceAll?: boolean): Promise<void>;
@@ -27,6 +35,7 @@ declare function resolveHeaderRoutingDecision(urlString: string, family: ModelFa
 declare function getHeaderStyleFromUrl(urlString: string, family: ModelFamily, cliFirst?: boolean): HeaderStyle;
 export declare const __testExports: {
     getHeaderStyleFromUrl: typeof getHeaderStyleFromUrl;
+    isMissingLicenseError: typeof isMissingLicenseError;
     resolveHeaderRoutingDecision: typeof resolveHeaderRoutingDecision;
     resolveQuotaFallbackHeaderStyle: typeof resolveQuotaFallbackHeaderStyle;
 };

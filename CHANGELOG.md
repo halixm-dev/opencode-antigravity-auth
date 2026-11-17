@@ -9,6 +9,15 @@
   unsupported `reasoning_effort` values, and answers session-title requests locally
   to save quota. Configurable under the `shield` key and enabled by default.
 
+### Fixed
+
+- Gemini requests no longer fail with `Forbidden` when one quota pool is unlicensed
+  for the account. A 403 `SUBSCRIPTION_REQUIRED` / `#3501` response now skips the
+  unlicensed pool for 30 minutes and retries on the other pool (Antigravity or
+  Gemini CLI) instead of returning the error to OpenCode. This is what made
+  Gemini unusable after a brief Antigravity rate limit pushed requests onto an
+  unlicensed Gemini CLI quota.
+
 ## [2.1.2] - 2026-10-27
 
 ### Added

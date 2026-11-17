@@ -54,6 +54,11 @@ twice the available quota.
 
 Automatic fallback between pools is always enabled for Gemini requests.
 
+If Google answers `403` with `SUBSCRIPTION_REQUIRED` / `#3501` ("You do not have a
+valid license of this product"), the account is not entitled to that pool. The
+plugin skips the unlicensed pool for 30 minutes and retries on the other pool, so
+a request never fails with `Forbidden` while the remaining pool still works.
+
 ---
 
 ## Checking Quotas

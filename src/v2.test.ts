@@ -742,6 +742,43 @@ describe("discovery and account eligibility regressions", () => {
       await expect(stream(sdk, id, controller.signal)).rejects.toThrow(/rate-limited.*claude|Quota resets in/)
     } finally { clearTimeout(timer) }
   })
+
+  it("retries on the licensed pool when Gemini CLI reports a missing license (#3501)", async () => {
+    const licenseBody = [{
+      error: {
+        code: 403,
+        message: "You do not have a valid license of this product. Please contact your administrator to request a license. (#3501)",
+        status: "PERMISSION_DENIED",
+        details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "SUBSCRIPTION_REQUIRED", domain: "cloudaicompanion.googleapis.com" }],
+      },
+    }]
+    const network = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (url.includes("oauth2.googleapis.com/token")) return Response.json({ access_token: "refreshed-access", expires_in: 3600 })
+      if (url.includes("//cloudcode-pa.googleapis.com")) return Response.json(licenseBody, { status: 403 })
+      return new Response(`data: ${JSON.stringify({ response: {
+        candidates: [{ index: 0, content: { role: "model", parts: [{ text: "licensed pool" }] }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 2, totalTokenCount: 5 },
+      } })}\n\n`, { headers: { "content-type": "text/event-stream" } })
+    })
+    const id = "antigravity-gemini-3.8-flash-high"
+    // Antigravity is briefly rate-limited, so the first attempt falls back to
+    // Gemini CLI - which is not licensed for this account.
+    state.storage!.accounts[0]!.rateLimitResetTimes = { [`gemini-antigravity:${id}`]: Date.now() + 400 }
+    const adapter = await host({ connection: false, catalog: { "gemini-3.8-flash-high": {} }, catalogAccounts: { [id]: [accountID(state.storage!.accounts[0]!)] } })
+    const { sdk } = await adapter.sdk(id)
+    const parts = await stream(sdk, id)
+    expect(parts).toContainEqual(expect.objectContaining({ type: "text-delta", delta: "licensed pool" }))
+    const urls = network.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)))
+    const cliIndex = urls.findIndex(url => url.includes("//cloudcode-pa.googleapis.com"))
+    const antigravityIndex = urls.findIndex(url => url.includes("://daily-cloudcode-pa.googleapis.com"))
+    expect(cliIndex).toBeGreaterThanOrEqual(0)
+    expect(antigravityIndex).toBeGreaterThan(cliIndex)
+    await vi.waitFor(() => {
+      const cliLimit = state.storage!.accounts[0]!.rateLimitResetTimes?.[`gemini-cli:${id}`]
+      expect(cliLimit).toBeGreaterThan(Date.now() + 60_000)
+    })
+  })
 })
 
 describe("account lifecycle regressions", () => {

@@ -364,6 +364,19 @@ function extractVerificationErrorDetails(bodyText) {
         verifyUrl: selectBestVerificationUrl([...verificationUrls]),
     };
 }
+/**
+ * Detects the Cloud Code "missing product license" 403 (#3501).
+ *
+ * Google returns it when the signed-in account has no entitlement for the quota
+ * pool behind the request. It is not a rate limit and retrying the same pool
+ * never succeeds, so the transport treats it as "this pool is unavailable".
+ */
+function isMissingLicenseError(bodyText) {
+    const lowerBody = decodeEscapedText(bodyText).toLowerCase();
+    return (lowerBody.includes("subscription_required") ||
+        lowerBody.includes("#3501") ||
+        lowerBody.includes("do not have a valid license of this product"));
+}
 async function verifyAccountAccess(account, client, providerId) {
     const parsed = parseRefreshParts(account.refreshToken);
     if (!parsed.refreshToken) {
@@ -882,6 +895,16 @@ function formatWaitTime(ms) {
 // Progressive rate limit retry delays
 const FIRST_RETRY_DELAY_MS = 1000; // 1s - first 429 quick retry on same account
 const SWITCH_ACCOUNT_DELAY_MS = 5000; // 5s - delay before switching to another account
+/**
+ * How long a quota pool stays skipped after Google answers 403 #3501
+ * ("You do not have a valid license of this product").
+ *
+ * The error means the OAuth account has no entitlement for the pool that served
+ * the request (Antigravity vs Gemini CLI), so retrying that pool is pointless.
+ * Skipping it lets the request continue on the licensed pool instead of failing
+ * with a hard "Forbidden".
+ */
+const LICENSE_UNAVAILABLE_COOLDOWN_MS = 30 * 60 * 1000;
 /**
  * Rate limit state tracking with time-window deduplication.
  *
@@ -1603,6 +1626,9 @@ export const createAntigravityPlugin = (providerId) => async ({ client, director
                             };
                             // Try endpoint fallbacks with single header style based on model suffix
                             let shouldSwitchAccount = false;
+                            // Set when Google reports that the current quota pool is unlicensed:
+                            // the outer loop then re-routes to the other pool instead of failing.
+                            let retryWithOtherQuotaPool = false;
                             // Determine header style from model suffix:
                             // - Models with antigravity- prefix -> use Antigravity quota
                             // - Gemini models without explicit prefix -> follow cli_first
@@ -1916,6 +1942,21 @@ export const createAntigravityPlugin = (providerId) => async ({ client, director
                                                 shouldSwitchAccount = true;
                                                 break;
                                             }
+                                            if (isMissingLicenseError(errorBodyText)) {
+                                                // The account has no entitlement for this quota pool (#3501).
+                                                // Skip the pool for a while and re-route to the other one
+                                                // instead of surfacing a hard "Forbidden" to the caller.
+                                                const poolName = headerStyle === "antigravity" ? "Antigravity" : "Gemini CLI";
+                                                const alternatePoolName = headerStyle === "antigravity" ? "Gemini CLI" : "Antigravity";
+                                                const label = account.email || `Account ${account.index + 1}`;
+                                                accountManager.markRateLimited(account, LICENSE_UNAVAILABLE_COOLDOWN_MS, family, headerStyle, model);
+                                                accountManager.requestSaveToDisk();
+                                                pushDebug(`license-missing: ${headerStyle} unlicensed for account ${account.index}, retrying ${alternatePoolName}`);
+                                                await showToast(`${poolName} quota is not licensed for ${label}. Using ${alternatePoolName} quota instead.`, "warning");
+                                                retryWithOtherQuotaPool = true;
+                                                shouldSwitchAccount = true;
+                                                break;
+                                            }
                                         }
                                         const shouldRetryEndpoint = (response.status === 403 ||
                                             response.status === 404 ||
@@ -2044,6 +2085,11 @@ export const createAntigravityPlugin = (providerId) => async ({ client, director
                                 }
                             } // end headerStyleLoop
                             if (shouldSwitchAccount) {
+                                if (retryWithOtherQuotaPool) {
+                                    // The pool that served this request is unlicensed: restart
+                                    // routing so the other pool (and its waits) takes over.
+                                    continue;
+                                }
                                 // Avoid tight retry loops when there's only one account.
                                 if (accountCount <= 1) {
                                     if (lastFailure) {
@@ -2908,6 +2954,7 @@ function isExplicitQuotaFromUrl(urlString) {
 }
 export const __testExports = {
     getHeaderStyleFromUrl,
+    isMissingLicenseError,
     resolveHeaderRoutingDecision,
     resolveQuotaFallbackHeaderStyle,
 };
