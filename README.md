@@ -1,73 +1,72 @@
-# Antigravity + Gemini CLI OAuth Plugin for Opencode
+# opencode-antigravity-auth — Google Antigravity & Gemini CLI OAuth Plugin for OpenCode
 
 [![npm version](https://img.shields.io/npm/v/opencode-antigravity-auth.svg)](https://www.npmjs.com/package/opencode-antigravity-auth)
-[![npm beta](https://img.shields.io/npm/v/opencode-antigravity-auth/beta.svg?label=beta)](https://www.npmjs.com/package/opencode-antigravity-auth)
+[![npm beta](https://img.shields.io/npm/v/opencode-antigravity-auth/beta.svg?label=beta)](https://www.npmjs.com/package/opencode-antigravity-auth/beta)
 [![npm downloads](https://img.shields.io/npm/dw/opencode-antigravity-auth.svg)](https://www.npmjs.com/package/opencode-antigravity-auth)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![X (Twitter)](https://img.shields.io/badge/X-@dopesalmon-000000?style=flat&logo=x)](https://x.com/dopesalmon)
 
-Enable Opencode to authenticate against **Antigravity** (Google's IDE) via OAuth so you can use Antigravity rate limits and access models like `gemini-3.1-pro` and `claude-opus-4-6-thinking` with your Google credentials.
+OpenCode OAuth plugin for **Google Antigravity** and **Gemini CLI**. Authenticate with your Google account to access Antigravity rate limits, multi-account quota rotation, and models such as `gemini-3.8-flash`, `gemini-4-hydrogen`, `gemini-3.1-pro`, and `claude-opus-4-6-thinking` inside OpenCode.
 
-Unofficial plugin. Google may restrict accounts using third-party clients.
+> Unofficial plugin. Google may restrict accounts using third-party clients.
 
-## Special Thanks
+## Install and authenticate
 
-<p align="center">
-  <a href="https://www.infistar.cc/register?aff=TDPL8KBJ&ref_source=link">
-    <img src="assets/sponsors/infistar-banner.png" alt="Infistar.cc, leading AI models with one API key" width="600">
-  </a>
-</p>
+Requires **OpenCode 2.1.2+** and **Node.js 20+**.
 
-Claude, GPT, Gemini and more with one API key at [Infistar.cc](https://www.infistar.cc/register?aff=TDPL8KBJ&ref_source=link). Sign up through the link to get CNY 5 in free credit.
+1. Add the plugin to `~/.config/opencode/opencode.json`:
 
-## Setup
+   ```json
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "plugins": ["opencode-antigravity-auth@2.1.2"]
+   }
+   ```
 
-Requires OpenCode **2.1.2+** and Node.js **20+**.
+   To run from a local checkout instead of npm, build it with `npm ci && npm run build` and put the checkout's absolute path in `plugins`.
 
-Add to `~/.config/opencode/opencode.json`:
+2. Authenticate a Google account:
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": ["opencode-antigravity-auth@2.1.2"]
-}
-```
+   ```sh
+   opencode auth login google
+   ```
 
-Then run:
+   Select **Google OAuth (Antigravity)**. Existing accounts are reused.
 
-```sh
-opencode auth login google
-```
+3. Confirm setup by listing discovered models:
 
-Choose **Google OAuth (Antigravity)**. Existing accounts are reused.
+   ```sh
+   opencode models
+   ```
 
-To use a local checkout, run `npm ci && npm run build` and replace the package name above with the checkout's absolute path.
+   Setup is complete when `google/antigravity-*` models appear in the output.
 
-## Use
+## Run models
 
 ```sh
-opencode models
 opencode run --model=google/antigravity-gemini-3.8-flash-high "Hello"
+opencode run --model=google/antigravity-gemini-4-hydrogen-xhigh "Hello"
 opencode run --model=google/antigravity-claude-opus-4-6-thinking#max "Hello"
 ```
 
-Models are discovered from your enabled accounts and cached for an hour. Availability depends on your Google plan. Select an `antigravity-*` model for Google OAuth. Native Google API-key models are hidden while Antigravity OAuth is selected and return when you switch to an API-key connection.
+- **Model discovery:** Models are fetched from your enabled accounts, cached for one hour, and gated by your Google plan.
+- **Provider visibility:** Select an `antigravity-*` model when using Google OAuth. Native Google API-key models are hidden while Antigravity OAuth is active and reappear when you switch back to an API-key connection.
+- **Gemini 4 Hydrogen:** Supports `low`, `medium`, `high`, and `xhigh` tiers; bare `antigravity-gemini-4-hydrogen` defaults to `high`. Configured limits are 1M context tokens and 65,536 output tokens (outputs cap at 65,536 tokens; long-decode continuation is unimplemented).
 
-Inside OpenCode, open **`/antigravity`** (or **`/ag`**) to:
+## Manage accounts and quotas
 
-- See logged-in accounts, the current selection, and cached quota percentages and reset times.
+Open **`/antigravity`** (or **`/ag`**) inside OpenCode to:
+
+- Inspect logged-in accounts, the active account, and cached lowest quota percentages across Claude, Gemini Pro, and Gemini Flash.
 - Switch to an enabled account by selecting its row.
-- Check Antigravity and Gemini CLI quotas and reset times.
-- Add an account, or use **Manage account…** to verify, enable, disable, re-authenticate, or delete one.
-- Refresh the model list.
+- Run **Check quotas / verify enabled accounts** to refresh Antigravity and Gemini CLI quotas and reset times (also resolves older cache entries missing reset times).
+- Add an account, refresh the model list, or open **Manage account…** to verify, enable, disable, re-authenticate, or delete an account.
 
-The account list shows the lowest cached quota across Claude, Gemini Pro, and Gemini Flash. Choose **Check quotas / verify enabled accounts** to refresh the saved quota data. Refresh quotas if an older cache shows a percentage without a reset time.
+Account credentials are stored in `~/.config/opencode/antigravity-accounts.json`—back up this file before moving machines. Disabling an account excludes it from rotation and routine quota checks.
 
-Accounts are stored in `~/.config/opencode/antigravity-accounts.json`. Back up this file before moving machines; it contains credentials. Disabling an account excludes it from rotation and routine quota checks.
+## Agent Signature Shield
 
-### Agent Signature Shield
-
-Requests are sanitized before they reach Antigravity: agent/framework fingerprints in system prompts are neutralized and unsupported `reasoning_effort` values are removed. These protections are enabled by default. Session titles are generated by the model; the heuristic local-title shortcut is opt-in. Tune these features under the `shield` key in [configuration](docs/CONFIGURATION.md#agent-signature-shield).
+Enabled by default: outgoing requests are sanitized before reaching Antigravity by neutralizing agent/framework fingerprints in system prompts and stripping unsupported `reasoning_effort` values. Session titles are model-generated by default; the heuristic local-title shortcut is opt-in. Configure under the `shield` key in [Configuration](docs/CONFIGURATION.md#agent-signature-shield).
 
 ## Development
 
@@ -79,8 +78,18 @@ npm run build
 OPENCODE_BIN=/path/to/opencode npm run test:e2e:v2
 ```
 
-The runtime test uses synthetic credentials. Authenticated model and menu checks require a logged-in Google account.
+All checks pass when `typecheck`, `test`, `build`, and `test:e2e:v2` exit zero. The V2 runtime test uses synthetic credentials; authenticated model and `/antigravity` menu checks require a logged-in Google account.
 
-[V2 migration and verification](docs/OPENCODE-V2.md) · [Configuration](docs/CONFIGURATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+OpenCode 1.18.29+ remains supported through the legacy entrypoint, where the account menu opens from `opencode auth login`.
 
-OpenCode 1.18.29+ remains supported through the legacy entrypoint; its account menu opens from `opencode auth login`.
+## Reference
+
+Read only the guide matching your task:
+
+- **Configuration:** [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — `antigravity.json` schema, `shield` options, and quota/request tuning.
+- **Multi-account rotation:** [docs/MULTI-ACCOUNT.md](docs/MULTI-ACCOUNT.md) — account rotation, Antigravity vs. Gemini CLI quota pools, and V1 legacy auth.
+- **Model variants:** [docs/MODEL-VARIANTS.md](docs/MODEL-VARIANTS.md) — thinking-budget `--variant` configuration (`low`, `medium`, `high`, `max`).
+- **OpenCode V2 migration:** [docs/OPENCODE-V2.md](docs/OPENCODE-V2.md) — upgrading from V1, `@opencode/plugin` 2.1.2 compatibility, and V2 verification.
+- **Troubleshooting:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — auth/quota errors, cross-platform `~/.config/opencode/` paths, debug logs, and account resets.
+- **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — request/response transformation, Claude thinking-block stripping, and session recovery.
+- **Antigravity API spec:** [docs/ANTIGRAVITY_API_SPEC.md](docs/ANTIGRAVITY_API_SPEC.md) — Unified Gateway protocol and `candidates[]` response format.
